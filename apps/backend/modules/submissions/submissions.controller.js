@@ -9,7 +9,7 @@ const assignmentSchema = Joi.object({
   lessonId:             Joi.string().uuid().required(),
   courseId:             Joi.string().uuid().required(),
   title:                Joi.string().trim().min(3).max(255).required(),
-  instructions:         Joi.string().max(10000),
+  instructions:         Joi.string().max(10000).allow('', null),
   maxScore:             Joi.number().integer().min(1),
   passingScore:         Joi.number().integer().min(0),
   allowTextSubmission:  Joi.boolean(),
@@ -17,7 +17,7 @@ const assignmentSchema = Joi.object({
   maxFileSizeMb:        Joi.number().integer().min(1).max(500),
   allowedFileTypes:     Joi.array().items(Joi.string()),
   maxFiles:             Joi.number().integer().min(1).max(10),
-  dueDate:              Joi.string().isoDate().allow(null),
+  dueDate:              Joi.alternatives().try(Joi.string().isoDate(), Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/)).allow(null),
   isPublished:          Joi.boolean(),
   isGroupAssignment:    Joi.boolean(),
 });
@@ -25,7 +25,10 @@ const assignmentSchema = Joi.object({
 async function createAssignment(req, res, next) {
   try {
     const { error, value } = assignmentSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
-    if (error) throw ApiError.badRequest('Validation failed', error.details.map(d => d.message));
+    if (error) {
+      console.error('[Assignment Validation]', error.details.map(d => d.message));
+      throw ApiError.badRequest('Validation failed', error.details.map(d => d.message));
+    }
     const assignment = await service.createAssignment(
       value.lessonId, value.courseId, value, req.user
     );

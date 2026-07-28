@@ -56,7 +56,7 @@ async function createAssignment(lessonId, courseId, data, requestingUser) {
   );
   if (!lRows[0]) throw ApiError.notFound('Lesson not found');
   if (lRows[0].type !== 'assignment') {
-    throw ApiError.badRequest('Lesson type must be "assignment" to attach an assignment');
+    await db.query(`UPDATE lessons SET type = 'assignment', updated_at = NOW() WHERE id = $1`, [lessonId]);
   }
 
   const { rows } = await db.query(

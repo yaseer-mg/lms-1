@@ -6,14 +6,9 @@
 services:
   nginx:
     ports:
-      - "${NGINX_HTTP_PORT:-80}:80"
-      - "${NGINX_HTTPS_PORT:-443}:443"
+      - "${NGINX_HTTP_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      # By default, this uses the development self-signed certs so the stack boots immediately.
-      # To use real SSL certificates from Certbot, obtain them on the host VPS and uncomment the lines below:
-      # - /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem:/etc/nginx/ssl/server.crt:ro
-      # - /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem:/etc/nginx/ssl/server.key:ro
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s

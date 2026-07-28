@@ -8,7 +8,7 @@ const ApiError    = require('../../shared/utils/apiError');
 // ── Validation schemas ────────────────────────
 const quizSchema = Joi.object({
   title:            Joi.string().trim().min(3).max(255).required(),
-  description:      Joi.string().max(2000),
+  description:      Joi.string().max(2000).allow('', null),
   maxAttempts:      Joi.number().integer().min(1).allow(null),
   timeLimitMins:    Joi.number().integer().min(1).allow(null),
   passingScorePct:  Joi.number().integer().min(0).max(100),
@@ -42,7 +42,10 @@ async function createQuiz(req, res, next) {
     const { lessonId, courseId } = req.body;
     if (!lessonId || !courseId) throw ApiError.badRequest('lessonId and courseId are required');
     const { error, value } = quizSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
-    if (error) throw ApiError.badRequest('Validation failed', error.details.map(d => d.message));
+    if (error) {
+      console.error('[Quiz Validation]', error.details.map(d => d.message));
+      throw ApiError.badRequest('Validation failed', error.details.map(d => d.message));
+    }
     const quiz = await service.createQuiz(lessonId, courseId, value, req.user);
     ApiResponse.created(res, { quiz }, 'Quiz created');
   } catch (err) { next(err); }

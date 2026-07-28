@@ -163,7 +163,7 @@ async function createQuiz(lessonId, courseId, data, requestingUser) {
   );
   if (!lRows[0]) throw ApiError.notFound('Lesson not found');
   if (lRows[0].type !== 'quiz') {
-    throw ApiError.badRequest('Lesson type must be "quiz" to attach a quiz');
+    await db.query(`UPDATE lessons SET type = 'quiz', updated_at = NOW() WHERE id = $1`, [lessonId]);
   }
 
   const { rows } = await db.query(
