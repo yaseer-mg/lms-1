@@ -115,8 +115,8 @@ export default function CalendarPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display font-bold text-2xl text-white flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h1 className="font-display font-bold text-xl sm:text-2xl text-white flex items-center gap-3">
           <CalendarIcon size={24} className="text-[#3B9EE8]" />
           Calendar
         </h1>
@@ -131,10 +131,10 @@ export default function CalendarPage() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Calendar grid */}
         <div className="flex-1">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
               <button onClick={prevMonth} className="btn-ghost p-1.5 rounded-lg"><ChevronLeft size={18} /></button>
-              <h2 className="font-semibold text-lg text-white min-w-[200px] text-center">
+              <h2 className="font-semibold text-base sm:text-lg text-white min-w-0 text-center whitespace-nowrap">
                 {format(currentDate, 'MMMM yyyy')}
               </h2>
               <button onClick={nextMonth} className="btn-ghost p-1.5 rounded-lg"><ChevronRight size={18} /></button>
@@ -200,7 +200,7 @@ export default function CalendarPage() {
                               className={`flex items-center gap-1 px-1 py-0.5 rounded text-[10px] leading-tight ${color.bg}`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${color.dot}`} />
-                              <span className="truncate">{ev.title}</span>
+                              <span className="hidden sm:inline truncate">{ev.title}</span>
                             </div>
                           );
                         })}

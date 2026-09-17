@@ -41,7 +41,8 @@ CREATE TYPE enrollment_status AS ENUM (
   'active',
   'completed',
   'expired',
-  'refunded'
+  'refunded',
+  'revoked'
 );
 
 CREATE TYPE submission_status AS ENUM (

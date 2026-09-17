@@ -38,7 +38,7 @@ END $$;
 
 DO $$ BEGIN
   CREATE TYPE enrollment_status AS ENUM (
-    'active', 'completed', 'expired', 'refunded'
+    'active', 'completed', 'expired', 'refunded', 'revoked'
   );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
