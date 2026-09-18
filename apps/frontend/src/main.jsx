@@ -1,24 +1,24 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './shared/contexts/ThemeContext';
+import { createOfflineQueryClient, persistOptions, setupOfflineSync } from './shared/offline/queryClient';
 import App from './App';
 import './index.css';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry:           1,
-      staleTime:       1000 * 60 * 5,   // 5 min
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const queryClient = createOfflineQueryClient();
+setupOfflineSync(queryClient);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={persistOptions}
+      onSuccess={() => {
+        queryClient.resumePausedMutations().catch(() => {});
+      }}
+    >
       <ThemeProvider>
         <App />
       </ThemeProvider>
@@ -35,6 +35,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           error:   { iconTheme: { primary: '#f43f5e', secondary: '#112236' } },
         }}
       />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </React.StrictMode>
 );

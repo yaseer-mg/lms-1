@@ -3,6 +3,7 @@ import { Outlet }   from 'react-router-dom';
 import Navbar   from './Navbar';
 import Sidebar  from './Sidebar';
 import { useAuth } from '../../hooks/useAuth';
+import OfflineBanner from '../ui/OfflineBanner';
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -11,6 +12,7 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen">
       <Navbar onMenuToggle={() => setSidebarOpen(v => !v)} />
+      <OfflineBanner />
 
       <div className="flex pt-16">
         {isAuthenticated && (
@@ -44,6 +46,7 @@ export function ClassroomLayout() {
   return (
     <div className="min-h-screen pt-16">
       <Navbar />
+      <OfflineBanner />
       <Outlet />
     </div>
   );

@@ -6,10 +6,27 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Attach access token
+// Attach access token + idempotency key for mutations
+const idempotent = ['post', 'put', 'patch', 'delete'];
+const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (idempotent.includes((config.method || 'get').toLowerCase())) {
+    if (config.data instanceof FormData) {
+      if (!config.data.get('__opId')) config.data.append('__opId', genId());
+      config.headers['Idempotency-Key'] = config.data.get('__opId');
+    } else if (config.data && typeof config.data === 'object') {
+      config.data.__opId = config.data.__opId || genId();
+      config.headers['Idempotency-Key'] = config.data.__opId;
+      config.data = { ...config.data, __opId: undefined };
+    } else {
+      config.headers['Idempotency-Key'] = genId();
+    }
+  }
+
   return config;
 });
 

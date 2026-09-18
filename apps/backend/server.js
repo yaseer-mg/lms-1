@@ -76,6 +76,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('dev'));
 app.use(requestLogger);
 
+// ── Idempotency — safe retries for offline-first mutations ──
+const idempotency = require('./shared/middleware/idempotency');
+app.use('/api/v1', idempotency());
+
 // ── Health Check ──────────────────────────────
 app.get('/api/health', async (req, res) => {
   try {
