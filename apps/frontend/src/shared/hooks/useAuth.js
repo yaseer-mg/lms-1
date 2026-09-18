@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore }   from '../stores/authStore';
 import { useSocketStore } from '../stores/socketStore';
 import { authApi }        from '../api/auth.api';
+import { prefetchStudentData } from '../offline/prefetch';
 
 export function useAuth() {
   const { user, setAuth, logout: clearAuth, isAuthenticated, isAdmin, isInstructor } = useAuthStore();
@@ -17,6 +18,7 @@ export function useAuth() {
       const { user, accessToken, refreshToken, mustChangePassword } = data.data;
       setAuth(user, accessToken, refreshToken);
       connect(user.id);
+      prefetchStudentData(queryClient, user.role);
 
       if (mustChangePassword) {
         toast.success(`Welcome, ${user.firstName || user.first_name}! Please set a new password.`);

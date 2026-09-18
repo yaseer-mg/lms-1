@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore }   from './shared/stores/authStore';
 import { useSocketStore } from './shared/stores/socketStore';
+import { prefetchStudentData } from './shared/offline/prefetch';
 
 // Layouts & guards
 import AppLayout, { AuthLayout, ClassroomLayout } from './shared/components/layout/AppLayout';
@@ -46,6 +48,17 @@ const CertificatesPage = lazy(() => import('./features/certificates/pages/Certif
 const LeaderboardPage = lazy(() => import('./features/certificates/pages/LeaderboardPage'));
 const CalendarPage = lazy(() => import('./features/calendar/pages/CalendarPage'));
 
+// Prefetch student data when a student session is restored
+function OfflinePrefetch() {
+  const user         = useAuthStore(s => s.user);
+  const queryClient  = useQueryClient();
+  useEffect(() => {
+    if (user?.id) prefetchStudentData(queryClient, user.role);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+  return null;
+}
+
 // Connect Socket.io once the user is known
 function SocketInit() {
   const user    = useAuthStore(s => s.user);
@@ -62,6 +75,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <SocketInit />
+      <OfflinePrefetch />
       <Suspense fallback={<PageLoader />}>
         <Routes>
 
