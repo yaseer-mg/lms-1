@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { forumsApi } from '../../../shared/api/forums.api';
+import { offlineMutation } from '../../../shared/offline/mutations';
 import Button from '../../../shared/components/ui/Button';
 import Spinner from '../../../shared/components/ui/spinner';
 
@@ -34,8 +35,7 @@ export default function ForumThreadDetailPage() {
     queryFn: () => forumsApi.listPosts(courseId, threadId, { page: 1, limit: 100 }).then(r => r.data.data),
   });
 
-  const replyMut = useMutation({
-    mutationFn: (data) => forumsApi.createPost(courseId, threadId, data),
+  const replyMut = useMutation(offlineMutation('forum-reply', {
     onSuccess: () => {
       setReplyContent('');
       queryClient.invalidateQueries({ queryKey: ['forum-posts', courseId, threadId] });
@@ -43,10 +43,9 @@ export default function ForumThreadDetailPage() {
       toast.success('Reply posted');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to reply'),
-  });
+  }));
 
-  const updatePostMut = useMutation({
-    mutationFn: ({ postId, data }) => forumsApi.updatePost(courseId, threadId, postId, data),
+  const updatePostMut = useMutation(offlineMutation('forum-update-post', {
     onSuccess: () => {
       setEditingPostId(null);
       setEditContent('');
@@ -54,44 +53,41 @@ export default function ForumThreadDetailPage() {
       toast.success('Post updated');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to update'),
-  });
+  }));
 
-  const deletePostMut = useMutation({
-    mutationFn: (postId) => forumsApi.deletePost(courseId, threadId, postId),
+  const deletePostMut = useMutation(offlineMutation('forum-delete-post', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forum-posts', courseId, threadId] });
       queryClient.invalidateQueries({ queryKey: ['forum-threads', courseId] });
       toast.success('Post deleted');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete'),
-  });
+  }));
 
-  const answerMut = useMutation({
-    mutationFn: (postId) => forumsApi.markAsAnswer(courseId, threadId, postId),
+  const answerMut = useMutation(offlineMutation('forum-mark-answer', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forum-posts', courseId, threadId] });
       queryClient.invalidateQueries({ queryKey: ['forum-thread', courseId, threadId] });
       queryClient.invalidateQueries({ queryKey: ['forum-threads', courseId] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
-  });
+  }));
 
-  const reactMut = useMutation({
-    mutationFn: ({ postId, emoji }) => forumsApi.toggleReaction(courseId, threadId, postId, emoji),
+  const reactMut = useMutation(offlineMutation('forum-react', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['forum-posts', courseId, threadId] });
     },
-  });
+  }));
 
   const handleReply = (e) => {
     e.preventDefault();
     if (!replyContent.trim()) return;
-    replyMut.mutate({ content: replyContent });
+    replyMut.mutate({ courseId, threadId, content: replyContent });
   };
 
   const handleEdit = (postId) => {
     if (!editContent.trim()) return;
-    updatePostMut.mutate({ postId, data: { content: editContent } });
+    updatePostMut.mutate({ courseId, threadId, postId, data: { content: editContent } });
   };
 
   if (threadLoading) {
@@ -182,7 +178,7 @@ export default function ForumThreadDetailPage() {
                       <div className="flex items-center gap-1">
                         {canModerate && !post.is_answer && (
                           <button
-                            onClick={() => answerMut.mutate(post.id)}
+                            onClick={() => answerMut.mutate({ courseId, threadId, postId: post.id })}
                             className="btn-ghost p-1 rounded text-xs text-gray-600 hover:text-green-500"
                             title="Mark as answer"
                           >
@@ -191,7 +187,7 @@ export default function ForumThreadDetailPage() {
                         )}
                         {canModerate && post.is_answer && (
                           <button
-                            onClick={() => answerMut.mutate(post.id)}
+                            onClick={() => answerMut.mutate({ courseId, threadId, postId: post.id })}
                             className="btn-ghost p-1 rounded text-xs text-green-500"
                             title="Unmark as answer"
                           >
@@ -208,7 +204,7 @@ export default function ForumThreadDetailPage() {
                               <Edit3 size={12} />
                             </button>
                             <button
-                              onClick={() => { if (confirm('Delete this post?')) deletePostMut.mutate(post.id); }}
+                              onClick={() => { if (confirm('Delete this post?')) deletePostMut.mutate({ courseId, threadId, postId: post.id }); }}
                               className="btn-ghost p-1 rounded text-gray-600 hover:text-red-400"
                               title="Delete"
                             >
@@ -246,7 +242,7 @@ export default function ForumThreadDetailPage() {
                         return (
                           <button
                             key={emoji}
-                            onClick={() => reactMut.mutate({ postId: post.id, emoji })}
+                            onClick={() => reactMut.mutate({ courseId, threadId, postId: post.id, emoji })}
                             className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                               isActive
                                 ? 'bg-[#3B9EE8]/20 text-[#3B9EE8]'

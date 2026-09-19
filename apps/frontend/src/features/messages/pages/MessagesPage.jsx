@@ -9,6 +9,7 @@ import Spinner         from '../../../shared/components/ui/spinner';
 import Modal           from '../../../shared/components/ui/modal';
 import toast           from 'react-hot-toast';
 import { clsx }        from 'clsx';
+import { offlineMutation } from '../../../shared/offline/mutations';
 
 export default function MessagesPage() {
   const { user }              = useAuthStore();
@@ -65,25 +66,20 @@ export default function MessagesPage() {
   }, [messages.length]);
 
   // Send message
-  const sendMutation = useMutation({
-    mutationFn: ({ recipientId, content }) => api.post('/messages/send', {
-      recipientId,
-      content,
-    }),
+  const sendMutation = useMutation(offlineMutation('message-send', {
     onSuccess: (_data, vars) => {
       setText('');
       queryClient.invalidateQueries({ queryKey: ['messages', activeConv?.conversation_id] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
-  });
+  }));
 
-  const deleteMut = useMutation({
-    mutationFn: ({ convId, msgId }) => api.delete(`/messages/${convId}/messages/${msgId}`),
+  const deleteMut = useMutation(offlineMutation('message-delete', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', activeConv?.conversation_id] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete'),
-  });
+  }));
 
   const handleSend = () => {
     const content = text.trim();

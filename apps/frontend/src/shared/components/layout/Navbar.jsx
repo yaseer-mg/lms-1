@@ -5,6 +5,7 @@ import { useQuery }  from '@tanstack/react-query';
 import { useAuth }          from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import NotificationDrawer   from '../../../features/notifications/NotificationDrawer';
+import SyncStatus           from '../ui/SyncStatus';
 import api                  from '../../api/client';
 import { useTheme }         from '../../contexts/ThemeContext';
 
@@ -83,6 +84,8 @@ export default function Navbar({ onMenuToggle }) {
 
         {user && (
           <>
+            <SyncStatus />
+
             {/* Messages */}
             <Link to="/messages" className="btn-ghost p-2 rounded-lg relative">
               <MessageSquare size={20} />

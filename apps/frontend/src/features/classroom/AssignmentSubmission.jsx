@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { FileText, Upload, CheckCircle2, XCircle, Clock, Download, X, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../../shared/api/client';
 import { submissionsApi } from '../../shared/api';
+import { offlineMutation } from '../../shared/offline/mutations';
 import Spinner from '../../shared/components/ui/spinner';
 import { clsx } from 'clsx';
 
@@ -15,7 +17,6 @@ export default function AssignmentSubmission({ lessonId, courseId, onComplete })
   const [submissions, setSubmissions] = useState([]);
   const [textContent, setTextContent] = useState('');
   const [files, setFiles] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -51,32 +52,26 @@ export default function AssignmentSubmission({ lessonId, courseId, onComplete })
   const isPassed = latest?.status === 'graded' && latest?.score >= (assignment?.passing_score || 0);
   const isOverdue = assignment?.due_date && new Date(assignment.due_date) < new Date();
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!textContent.trim() && files.length === 0) {
-      return toast.error('Please provide text content or upload files');
-    }
-
-    setSubmitting(true);
-    try {
-      const fd = new FormData();
-      if (textContent.trim()) fd.append('textContent', textContent.trim());
-      for (const f of files) fd.append('files', f);
-
-      const res = await api.post(`/submissions/assignments/${assignment.id}/submit`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+  const submitMutation = useMutation(offlineMutation('assignment-submit', {
+    onSuccess: (res) => {
       const newSubmission = res.data.data.submission;
       setSubmissions(prev => [newSubmission, ...prev]);
       setTextContent('');
       setFiles([]);
       toast.success('Assignment submitted');
       if (onComplete) onComplete({ submitted: true });
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to submit');
-    } finally {
-      setSubmitting(false);
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to submit'),
+  }));
+
+  const submitting = submitMutation.isPending;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!textContent.trim() && files.length === 0) {
+      return toast.error('Please provide text content or upload files');
     }
+    submitMutation.mutate({ assignmentId: assignment.id, textContent, files });
   }
 
   function removeFile(index) {

@@ -10,6 +10,7 @@ import { useAuthStore } from '../../../shared/stores/authStore';
 import VideoPlayer    from '../VideoPlayer';
 import CourseProgress from '../CourseProgress';
 import QuizPlayer     from '../../assessments/QuizPlayer';
+import { offlineMutation } from '../../../shared/offline/mutations';
 import AssignmentSubmission from '../AssignmentSubmission';
 import SCORMPlayer from '../SCORMPlayer';
 import LTILaunch from '../LTILaunch';
@@ -73,15 +74,14 @@ export default function ClassroomPage() {
   };
 
   const [isCompleting, setIsCompleting] = useState(false);
-  const completeMut = useMutation({
-    mutationFn: (data) => api.post(`/progress/lessons/${data.lessonId}/complete`, { courseId }),
+  const completeMut = useMutation(offlineMutation('lesson-complete', {
     onSuccess: () => {
       toast.success('Lesson completed');
       refetchProgress();
       queryClient.invalidateQueries({ queryKey: ['course-progress', courseId] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to mark complete'),
-  });
+  }));
 
   // Blocked state for date restrictions
   if (progressError?.response?.status === 403) {
@@ -290,7 +290,7 @@ export default function ClassroomPage() {
                     lessonId={lessonData.id}
                     courseId={courseId}
                     isCompleted={activeLesson?.is_completed}
-                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id })}
+                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id, courseId })}
                     loading={completeMut.isPending}
                     nextLesson={nextLesson}
                     onNext={() => goToLesson(nextLesson.id)}
@@ -337,7 +337,7 @@ export default function ClassroomPage() {
                     lessonId={lessonData.id}
                     courseId={courseId}
                     isCompleted={activeLesson?.is_completed}
-                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id })}
+                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id, courseId })}
                     loading={completeMut.isPending}
                     nextLesson={nextLesson}
                     onNext={() => goToLesson(nextLesson.id)}
@@ -360,7 +360,7 @@ export default function ClassroomPage() {
                     lessonId={lessonData.id}
                     courseId={courseId}
                     isCompleted={activeLesson?.is_completed}
-                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id })}
+                    onComplete={() => completeMut.mutate({ lessonId: lessonData.id, courseId })}
                     loading={completeMut.isPending}
                     nextLesson={nextLesson}
                     onNext={() => goToLesson(nextLesson.id)}

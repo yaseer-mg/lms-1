@@ -15,6 +15,7 @@ import Button from '../../../shared/components/ui/Button';
 import Input from '../../../shared/components/ui/input';
 import Modal from '../../../shared/components/ui/modal';
 import Spinner from '../../../shared/components/ui/spinner';
+import { offlineMutation } from '../../../shared/offline/mutations';
 
 const EVENT_COLORS = {
   assignment_due: { dot: 'bg-red-500', bg: 'bg-red-500/10 text-red-400 border-red-500/20' },
@@ -70,8 +71,7 @@ export default function CalendarPage() {
 
   const selectedEvents = selectedDate ? eventsByDate[format(selectedDate, 'yyyy-MM-dd')] || [] : [];
 
-  const createMut = useMutation({
-    mutationFn: (data) => calendarApi.createEvent(data),
+  const createMut = useMutation(offlineMutation('calendar-create', {
     onSuccess: () => {
       toast.success('Event created');
       setShowCreateModal(false);
@@ -79,10 +79,9 @@ export default function CalendarPage() {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to create event'),
-  });
+  }));
 
-  const deleteMut = useMutation({
-    mutationFn: (id) => calendarApi.deleteEvent(id),
+  const deleteMut = useMutation(offlineMutation('calendar-delete', {
     onSuccess: () => {
       toast.success('Event deleted');
       setShowEventModal(false);
@@ -90,7 +89,7 @@ export default function CalendarPage() {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete event'),
-  });
+  }));
 
   const handleCreate = (e) => {
     e.preventDefault();

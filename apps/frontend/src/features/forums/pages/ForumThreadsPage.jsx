@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { forumsApi } from '../../../shared/api/forums.api';
 import Button from '../../../shared/components/ui/Button';
 import Input from '../../../shared/components/ui/input';
+import { offlineMutation } from '../../../shared/offline/mutations';
 import Modal from '../../../shared/components/ui/modal';
 import Spinner from '../../../shared/components/ui/spinner';
 
@@ -31,8 +32,7 @@ export default function ForumThreadsPage() {
     queryFn: () => forumsApi.listThreads(courseId, { sort, page, limit: 20, search }).then(r => r.data.data),
   });
 
-  const createMut = useMutation({
-    mutationFn: (data) => forumsApi.createThread(courseId, data),
+  const createMut = useMutation(offlineMutation('forum-create-thread', {
     onSuccess: (res) => {
       toast.success('Thread created');
       setShowCreate(false);
@@ -41,7 +41,7 @@ export default function ForumThreadsPage() {
       navigate(`/learn/${courseId}/forums/${res.data.data.thread.id}`);
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to create thread'),
-  });
+  }));
 
   const pinMut = useMutation({
     mutationFn: (threadId) => forumsApi.pinThread(courseId, threadId),
@@ -72,7 +72,7 @@ export default function ForumThreadsPage() {
 
   const handleCreate = (e) => {
     e.preventDefault();
-    createMut.mutate(threadForm);
+    createMut.mutate({ ...threadForm, courseId });
   };
 
   return (

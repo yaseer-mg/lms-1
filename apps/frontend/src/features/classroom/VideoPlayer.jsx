@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import apiClient from '@/shared/api/client';
+import { offlineMutation } from '../../shared/offline/mutations';
+import {
+  downloadOfflineVideo,
+  getOfflineVideo,
+  removeOfflineVideo,
+  fileIdFromUrl,
+} from '../../shared/offline/videos';
 
 // ─────────────────────────────────────────────
 //  VideoPlayer
@@ -30,6 +39,76 @@ export default function VideoPlayer({
   const [showBookmarkInput, setShowBookmarkInput] = useState(false);
   const [bookmarkLabel,     setBookmarkLabel]     = useState('');
   const [loading,       setLoading]       = useState(true);
+
+  const [offlineMeta,   setOfflineMeta]   = useState(null);
+  const [blobUrl,       setBlobUrl]       = useState(null);
+  const [saving,        setSaving]        = useState(false);
+  const [isOnline,      setIsOnline]      = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+
+  const fileId = useMemo(() => fileIdFromUrl(videoUrl), [videoUrl]);
+  const offlineMissing = !isOnline && offlineMeta === null;
+
+  // ── Online/offline status ─────────────────────
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+
+  // ── Load offline copy (if any) ───────────────
+  useEffect(() => {
+    if (!fileId) return;
+    getOfflineVideo(fileId)
+      .then(meta => { if (meta) setOfflineMeta(meta); })
+      .catch(() => {});
+  }, [fileId]);
+
+  // ── Object URL from persisted blob when offline ─
+  useEffect(() => {
+    let url = null;
+    if (!isOnline && offlineMeta?.blob) {
+      url = URL.createObjectURL(offlineMeta.blob);
+      setBlobUrl(url);
+    } else {
+      setBlobUrl(null);
+    }
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [isOnline, offlineMeta]);
+
+  useEffect(() => {
+    if (offlineMissing) setLoading(false);
+  }, [offlineMissing]);
+
+  const handleDownload = async () => {
+    if (saving || !fileId) return;
+    setSaving(true);
+    try {
+      await downloadOfflineVideo({ fileId, lessonId, videoUrl });
+      const meta = await getOfflineVideo(fileId);
+      setOfflineMeta(meta);
+      toast.success('Video saved for offline viewing');
+    } catch (err) {
+      toast.error('Download failed. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveOffline = async () => {
+    if (!fileId) return;
+    try {
+      await removeOfflineVideo(fileId);
+      setOfflineMeta(null);
+      toast.success('Offline video removed');
+    } catch (err) {
+      toast.error('Could not remove offline video');
+    }
+  };
 
   // ── Load saved position on mount ─────────────
   useEffect(() => {
@@ -156,44 +235,53 @@ export default function VideoPlayer({
     }
   }, [lessonId, courseId, durationSecs, stopHeartbeat, onComplete]);
 
+  // ── Offline-aware mutations ──────────────────
+  const toggleCompleteMut = useMutation(offlineMutation('video-toggle-complete', {
+    onError: () => {
+      const completed = !isCompleted;
+      setIsCompleted(completed);
+      if (completed) onComplete?.();
+    },
+  }));
+
+  const addBookmarkMut = useMutation(offlineMutation('video-bookmark-add'));
+
+  const removeBookmarkMut = useMutation(offlineMutation('video-bookmark-delete'));
+
   // ── Manual complete toggle ────────────────────
-  const toggleComplete = async () => {
-    try {
-      if (isCompleted) {
-        await apiClient.post(`/progress/lessons/${lessonId}/incomplete`, { courseId });
-        setIsCompleted(false);
-      } else {
-        await apiClient.post(`/progress/lessons/${lessonId}/complete`, { courseId });
-        setIsCompleted(true);
-        onComplete?.();
+  const toggleComplete = () => {
+    toggleCompleteMut.mutate(
+      { lessonId, courseId, complete: !isCompleted },
+      {
+        onSuccess: (res) => {
+          const completed = !!res?.data?.data?.is_completed;
+          setIsCompleted(completed);
+          if (completed) onComplete?.();
+        },
       }
-    } catch (err) {
-      console.error('[VideoPlayer] Toggle complete failed:', err);
-    }
+    );
   };
 
   // ── Bookmarks ─────────────────────────────────
-  const addBookmark = async () => {
+  const addBookmark = () => {
     const pos = Math.floor(videoRef.current?.currentTime || 0);
-    try {
-      const res = await apiClient.post(`/progress/lessons/${lessonId}/bookmarks`, {
-        courseId, positionSecs: pos, label: bookmarkLabel || undefined,
-      });
-      setBookmarks(prev => [...prev, res.data.data.bookmark].sort((a, b) => a.position_secs - b.position_secs));
-      setBookmarkLabel('');
-      setShowBookmarkInput(false);
-    } catch (err) {
-      console.error('[VideoPlayer] Add bookmark failed:', err);
-    }
+    addBookmarkMut.mutate(
+      { lessonId, courseId, positionSecs: pos, label: bookmarkLabel || undefined },
+      {
+        onSuccess: (res) => {
+          setBookmarks(prev =>
+            [...prev, res.data.data.bookmark].sort((a, b) => a.position_secs - b.position_secs)
+          );
+          setBookmarkLabel('');
+          setShowBookmarkInput(false);
+        },
+      }
+    );
   };
 
-  const removeBookmark = async (bookmarkId) => {
-    try {
-      await apiClient.delete(`/progress/lessons/${lessonId}/bookmarks/${bookmarkId}`);
-      setBookmarks(prev => prev.filter(b => b.id !== bookmarkId));
-    } catch (err) {
-      console.error('[VideoPlayer] Remove bookmark failed:', err);
-    }
+  const removeBookmark = (bookmarkId) => {
+    setBookmarks(prev => prev.filter(b => b.id !== bookmarkId));
+    removeBookmarkMut.mutate({ lessonId, bookmarkId });
   };
 
   const jumpToBookmark = (positionSecs) => {
@@ -216,10 +304,19 @@ export default function VideoPlayer({
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
+        {offlineMissing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+            <div className="text-center px-6">
+              <p className="text-gray-200 font-medium mb-1">Video not available offline</p>
+              <p className="text-gray-500 text-sm">Reconnect to download it for offline viewing.</p>
+            </div>
+          </div>
+        )}
+
         <video
           ref={videoRef}
           className="w-full h-full"
-          src={videoUrl}
+          src={offlineMissing ? undefined : (!isOnline && blobUrl ? blobUrl : videoUrl)}
           controls
           controlsList="nodownload"
           onPlay={startHeartbeat}
@@ -273,6 +370,25 @@ export default function VideoPlayer({
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
         >
           🔖 Bookmark
+        </button>
+
+        {/* Download for offline */}
+        <button
+          onClick={offlineMeta ? handleRemoveOffline : handleDownload}
+          disabled={!isOnline || saving}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            offlineMeta
+              ? 'bg-green-800/60 hover:bg-green-700/60 text-green-200'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+          }`}
+        >
+          {saving
+            ? '⏳ Downloading…'
+            : offlineMeta
+              ? '✓ Offline Saved'
+              : isOnline
+                ? '⬇ Download for Offline'
+                : '⬇ Offline'}
         </button>
 
         {/* Next lesson */}

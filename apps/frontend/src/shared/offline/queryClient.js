@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createIDBPersister } from './persister';
+import { setSyncMeta, notifySync } from './sync.meta';
 
 export function createOfflineQueryClient() {
   return new QueryClient({
@@ -37,5 +38,21 @@ export function setupOfflineSync(queryClient) {
       queryClient.resumePausedMutations().catch(() => {});
     });
   }
+
+  const mutations = queryClient.getMutationCache();
+  mutations.subscribe((mutation) => {
+    if (!mutation) return;
+    const { status } = mutation.state;
+    if (status === 'success') {
+      const meta = { lastSynced: Date.now(), status: 'synced' };
+      setSyncMeta(meta);
+      notifySync(meta);
+    } else if (status === 'paused') {
+      const meta = { status: 'pending' };
+      setSyncMeta(meta);
+      notifySync(meta);
+    }
+  });
+
   return queryClient;
 }

@@ -8,6 +8,7 @@ import { notificationsApi } from '../../../shared/api/notifications.api';
 import Spinner from '../../../shared/components/ui/spinner';
 import Button from '../../../shared/components/ui/Button';
 import { clsx } from 'clsx';
+import { offlineMutation } from '../../../shared/offline/mutations';
 
 const TYPE_ICONS = {
   enrollment: '🎓',
@@ -53,21 +54,19 @@ export default function NotificationsPage() {
 
   const notifications = data?.data || [];
 
-  const markReadMutation = useMutation({
-    mutationFn: (ids) => api.patch('/notifications/read', { ids }),
+  const markReadMutation = useMutation(offlineMutation('notification-read', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
     },
-  });
+  }));
 
-  const deleteMutation = useMutation({
-    mutationFn: (id) => api.delete(`/notifications/${id}`),
+  const deleteMutation = useMutation(offlineMutation('notification-delete', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete'),
-  });
+  }));
 
   const { data: prefsData } = useQuery({
     queryKey: ['notifications', 'preferences'],
@@ -75,14 +74,13 @@ export default function NotificationsPage() {
     enabled: showSettings,
   });
 
-  const updatePrefMut = useMutation({
-    mutationFn: ({ type, data }) => notificationsApi.updatePreference(type, data),
+  const updatePrefMut = useMutation(offlineMutation('notification-prefs', {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', 'preferences'] });
       toast.success('Preference updated');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to update'),
-  });
+  }));
 
   const userPrefs = prefsData || [];
   const getPref = (type) => {

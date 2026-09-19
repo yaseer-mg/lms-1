@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
+import { offlineMutation } from '../../shared/offline/mutations';
 
 // ─────────────────────────────────────────────
 //  QuizPlayer
@@ -97,6 +99,8 @@ export default function QuizPlayer({ quizId, courseId, onComplete }) {
   };
 
   // ── Submit ───────────────────────────────────
+  const submitMutation = useMutation(offlineMutation('quiz-submit'));
+
   const handleSubmit = useCallback(async (autoSubmit = false) => {
     if (!autoSubmit) {
       const unanswered = attempt.questions.filter(
@@ -117,10 +121,7 @@ export default function QuizPlayer({ quizId, courseId, onComplete }) {
         questionId:      q.id,
         selectedOptions: answers[q.id] || [],
       }));
-      const res = await apiClient.post(
-        `/assessments/attempts/${attempt.attemptId}/submit`,
-        { answers: payload }
-      );
+      const res = await submitMutation.mutateAsync({ attemptId: attempt.attemptId, payload });
       const data = res.data.data;
       setResult(data);
       setState(STATES.SUBMITTED);
@@ -130,7 +131,7 @@ export default function QuizPlayer({ quizId, courseId, onComplete }) {
     } finally {
       setLoading(false);
     }
-  }, [attempt, answers, onComplete]);
+  }, [attempt, answers, onComplete, submitMutation]);
 
   submitRef.current = handleSubmit;
 

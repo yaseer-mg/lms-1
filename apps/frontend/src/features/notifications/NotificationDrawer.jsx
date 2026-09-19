@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import api    from '../../shared/api/client';
 import Spinner from '../../shared/components/ui/spinner';
 import { clsx } from 'clsx';
+import { offlineMutation } from '../../shared/offline/mutations';
 
 const TYPE_COLORS = {
   enrollment:        'bg-blue-500/20 text-blue-400',
@@ -26,17 +27,15 @@ export default function NotificationDrawer({ open, onClose }) {
     enabled:  open,
   });
 
-  const markAllRead = useMutation({
-    mutationFn: () => api.patch('/notifications/read', {}),
+  const markAllRead = useMutation(offlineMutation('notification-read-all', {
     onSuccess:  () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
-  });
+  }));
 
-  const markOne = useMutation({
-    mutationFn: (id) => api.patch('/notifications/read', { ids: [id] }),
+  const markOne = useMutation(offlineMutation('notification-read-one', {
     onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
-  });
+  }));
 
   const notifications = data?.data || [];
   const unreadCount   = notifications.filter(n => !n.is_read).length;

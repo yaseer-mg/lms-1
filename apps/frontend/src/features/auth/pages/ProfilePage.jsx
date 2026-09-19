@@ -6,6 +6,7 @@ import api from '../../../shared/api/client';
 import { useAuthStore } from '../../../shared/stores/authStore';
 import Input, { Textarea } from '../../../shared/components/ui/input';
 import Button from '../../../shared/components/ui/Button';
+import { offlineMutation } from '../../../shared/offline/mutations';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
@@ -25,15 +26,14 @@ export default function ProfilePage() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (data) => api.patch('/users/profile', data),
+  const updateMutation = useMutation(offlineMutation('profile-update', {
     onSuccess: (res) => {
       toast.success('Profile updated');
       updateUser(res.data.data?.user || { first_name: res.data.data?.firstName });
       queryClient.invalidateQueries({ queryKey: ['my-profile'] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Update failed'),
-  });
+  }));
 
   return (
     <div className="max-w-2xl">
