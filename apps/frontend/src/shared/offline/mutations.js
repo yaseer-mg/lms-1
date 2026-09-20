@@ -9,11 +9,12 @@ export function getRootClient() {
 }
 
 export function offlineMutation(key, config) {
-  const callConfig = { ...config };
+  const conf = config || {};
+  const callConfig = { ...conf };
   if (rootClient) {
-    const defaults = { mutationFn: config.mutationFn };
-    if (config.retry !== undefined) defaults.retry = config.retry;
-    if (config.networkMode !== undefined) defaults.networkMode = config.networkMode;
+    const defaults = { mutationFn: conf.mutationFn };
+    if (conf.retry !== undefined) defaults.retry = conf.retry;
+    if (conf.networkMode !== undefined) defaults.networkMode = conf.networkMode;
     if (!rootClient.getMutationDefaults([key])) {
       rootClient.setMutationDefaults([key], defaults);
     }

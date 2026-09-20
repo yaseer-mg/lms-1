@@ -34,7 +34,7 @@ export default function SyncStatus() {
   }, []);
 
   const pending = useMutationState({
-    filters: { predicate: (m) => m.state.isPaused },
+    filters: { predicate: (m) => m.state?.isPaused },
   });
 
   const pendingCount = pending.length;

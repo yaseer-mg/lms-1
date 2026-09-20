@@ -16,7 +16,7 @@ export default function OfflineBanner() {
   }, []);
 
   const pending = useMutationState({
-    filters: { predicate: (m) => m.state.isPaused },
+    filters: { predicate: (m) => m.state?.isPaused },
   });
 
   if (online && pending.length === 0) return null;

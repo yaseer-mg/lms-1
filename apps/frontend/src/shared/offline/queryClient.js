@@ -26,8 +26,7 @@ export const persistOptions = {
   persister: offlinePersister,
   maxAge: 1000 * 60 * 60 * 24 * 7,
   dehydrateOptions: {
-    shouldDehydrateMutation: (mutation) =>
-      mutation.state.status === 'paused' || mutation.state.isPaused,
+    shouldDehydrateMutation: (mutation) => Boolean(mutation?.state) && (mutation.state.status === 'paused' || mutation.state.isPaused),
   },
   hydrateOptions: {},
 };
@@ -41,7 +40,7 @@ export function setupOfflineSync(queryClient) {
 
   const mutations = queryClient.getMutationCache();
   mutations.subscribe((mutation) => {
-    if (!mutation) return;
+    if (!mutation?.state) return;
     const { status } = mutation.state;
     if (status === 'success') {
       const meta = { lastSynced: Date.now(), status: 'synced' };

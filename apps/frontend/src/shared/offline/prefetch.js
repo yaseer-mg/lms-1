@@ -13,7 +13,7 @@ export function prefetchStudentData(queryClient, role) {
   });
   queryClient.prefetchQuery({
     queryKey: ['categories'],
-    queryFn:  coursesApi.categories,
+    queryFn:  () => coursesApi.categories().then(r => r.data.data.categories || []),
   });
   queryClient.prefetchQuery({
     queryKey: ['student-dashboard'],
@@ -21,7 +21,7 @@ export function prefetchStudentData(queryClient, role) {
   });
   queryClient.prefetchQuery({
     queryKey: ['my-xp'],
-    queryFn:  certificatesApi.myXp,
+    queryFn:  () => certificatesApi.myXp().then(r => r.data.data),
   });
   queryClient.prefetchQuery({
     queryKey: ['dashboard-calendar'],

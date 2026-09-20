@@ -28,8 +28,7 @@ export default function CourseCatalogPage() {
 
   const { data: cats }  = useQuery({
     queryKey: ['categories'],
-    queryFn:  coursesApi.categories,
-    select:   r => r.data.data.categories,
+    queryFn:  () => coursesApi.categories().then(r => r.data.data.categories),
   });
 
   const enrolledQuery = useQuery({
@@ -40,8 +39,7 @@ export default function CourseCatalogPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['courses', { search, category, level, sort, page }],
-    queryFn:  () => coursesApi.list({ search, category, level, sort, page, limit: 12 }),
-    select:   r => r.data,
+    queryFn:  () => coursesApi.list({ search, category, level, sort, page, limit: 12 }).then(r => r.data),
     enabled:  !isStudent,
   });
 
