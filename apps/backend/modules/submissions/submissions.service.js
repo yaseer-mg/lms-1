@@ -541,18 +541,25 @@ async function getCourseGradebook(courseId, requestingUser) {
     [courseId]
   );
 
-  // Get all graded-item lessons (columns) — quizzes & assignments, regardless of grades or publish status
+  // Get all graded-item lessons (columns) — quizzes, assignments & manual-grade items,
+  // regardless of grades or publish status
   const { rows: columns } = await db.query(
     `SELECT l.id AS lesson_id, l.title AS lesson_title, l.type AS lesson_type,
-            COALESCE(a.max_score, (SELECT COALESCE(SUM(points), 100) FROM quiz_questions WHERE quiz_id = qz.id), 100) AS max_score,
+            COALESCE(a.max_score, (SELECT COALESCE(SUM(points), 100) FROM quiz_questions WHERE quiz_id = qz.id), mgr.max_score, 100) AS max_score,
             s.title AS section_title
      FROM lessons l
      JOIN sections s ON s.id = l.section_id
      LEFT JOIN assignments a ON a.lesson_id = l.id
      LEFT JOIN quizzes qz ON qz.lesson_id = l.id
+     LEFT JOIN (
+       SELECT lesson_id, MAX(max_score) AS max_score
+       FROM grades
+       WHERE course_id = $1 AND grade_type = 'manual'
+       GROUP BY lesson_id
+     ) mgr ON mgr.lesson_id = l.id
      WHERE l.course_id = $1
        AND l.deleted_at IS NULL
-       AND (a.id IS NOT NULL OR qz.id IS NOT NULL)
+       AND (a.id IS NOT NULL OR qz.id IS NOT NULL OR mgr.lesson_id IS NOT NULL)
      ORDER BY s.sort_order, l.sort_order`,
     [courseId]
   );
@@ -640,6 +647,107 @@ async function listCourseAssignments(courseId, requestingUser) {
   return rows;
 }
 
+// ─────────────────────────────────────────────
+//  MANUAL GRADES (physical exams / paper tests)
+// ─────────────────────────────────────────────
+
+async function addManualGrades(courseId, lessonId, grades, defaultMaxScore, requestingUser) {
+  await verifyCourseOwner(courseId, requestingUser);
+
+  const { rows: lessonRows } = await db.query(
+    'SELECT id FROM lessons WHERE id = $1 AND course_id = $2 AND deleted_at IS NULL',
+    [lessonId, courseId]
+  );
+  if (!lessonRows[0]) throw ApiError.notFound('Lesson not found in this course');
+
+  if (!Array.isArray(grades) || grades.length === 0) {
+    throw ApiError.badRequest('grades must be a non-empty array');
+  }
+
+  const maxScore = defaultMaxScore !== undefined && defaultMaxScore !== null && defaultMaxScore !== ''
+    ? Number(defaultMaxScore)
+    : 100;
+  if (!(maxScore > 0)) throw ApiError.badRequest('maxScore must be a positive number');
+
+  const studentIds = grades.map(g => g.userId);
+  const { rows: enrRows } = await db.query(
+    `SELECT user_id FROM enrollments
+     WHERE course_id = $1 AND user_id = ANY($2::uuid[]) AND status = 'active'`,
+    [courseId, studentIds]
+  );
+  const enrolledIds = new Set(enrRows.map(r => r.user_id));
+
+  const results = [];
+  await db.transaction(async (client) => {
+    for (const g of grades) {
+      if (!enrolledIds.has(g.userId)) continue;
+
+      const score = Number(g.score);
+      if (Number.isNaN(score) || score < 0 || score > maxScore) {
+        throw ApiError.badRequest(`Score must be a number between 0 and ${maxScore}`);
+      }
+
+      const scorePct = Math.round((score / maxScore) * 100);
+      const passed   = score >= maxScore * 0.5;
+
+      await client.query(
+        `INSERT INTO grades
+           (user_id, course_id, lesson_id, grade_type, score, max_score, score_pct, passed)
+         VALUES ($1,$2,$3,'manual',$4,$5,$6,$7)
+         ON CONFLICT (user_id, lesson_id, grade_type) DO UPDATE SET
+           score = EXCLUDED.score,
+           max_score = EXCLUDED.max_score,
+           score_pct = EXCLUDED.score_pct,
+           passed = EXCLUDED.passed,
+           graded_at = NOW()`,
+        [g.userId, courseId, lessonId, score, maxScore, scorePct, passed]
+      );
+
+      results.push({ userId: g.userId, score, maxScore, scorePct, passed });
+    }
+  });
+
+  return { graded: results, maxScore, count: results.length };
+}
+
+// ─────────────────────────────────────────────
+//  GRADEBOOK EXPORT (CSV download)
+// ─────────────────────────────────────────────
+
+function csvEscape(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+async function exportGradebookCsv(courseId, requestingUser) {
+  const { graderows, columns } = await getCourseGradebook(courseId, requestingUser);
+
+  const lines = [];
+  lines.push([
+    'Student',
+    'Email',
+    ...columns.map(c => `${csvEscape(c.lesson_title)} (${c.max_score})`),
+    'Total',
+    'Pct',
+  ].join(','));
+
+  for (const row of graderows) {
+    const cells = columns.map(c => {
+      const g = row.grades[c.lesson_id];
+      return g ? `${g.score}/${g.maxScore}` : '';
+    });
+    lines.push([
+      csvEscape(`${row.student.lastName || ''}, ${row.student.firstName || ''}`),
+      csvEscape(row.student.email),
+      ...cells,
+      row.summary.totalScore,
+      row.summary.overallPct,
+    ].join(','));
+  }
+
+  return lines.join('\r\n');
+}
+
 module.exports = {
   createAssignment, updateAssignment,
   getAssignment, getAssignmentByLesson,
@@ -647,4 +755,5 @@ module.exports = {
   gradeSubmission, listSubmissions, getSubmissionDetail,
   getGradebook, getCourseGradebook,
   listCourseAssignments,
+  addManualGrades, exportGradebookCsv,
 };

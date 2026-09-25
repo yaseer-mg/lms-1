@@ -4,6 +4,7 @@ const Joi         = require('joi');
 const service     = require('./lessons.service');
 const ApiResponse = require('../../shared/utils/apiResponse');
 const ApiError    = require('../../shared/utils/apiError');
+const { parseYoutubeId } = require('../../shared/utils/youtube');
 
 const lessonSchema = Joi.object({
   title:           Joi.string().trim().min(2).max(255).required(),
@@ -12,7 +13,37 @@ const lessonSchema = Joi.object({
   sectionId:       Joi.string().uuid().required(),
   durationSeconds: Joi.number().integer().min(0),
   isPublished:     Joi.boolean(),
+  videoSource:     Joi.string().valid('upload', 'youtube'),
+  videoUrl:        Joi.string().trim().max(500),
 });
+
+// Normalize external-video input into videoSource + youtubeId.
+// Only runs when the payload explicitly mentions the video source/link;
+// otherwise the stored video settings are left untouched. The raw URL is never stored.
+function normalizeVideoSource(value) {
+  if (!('videoSource' in value) && !('videoUrl' in value)) {
+    delete value.youtubeId;
+    return;
+  }
+
+  const source = value.videoSource || (value.videoUrl ? 'youtube' : 'upload');
+  const applicable = value.type === undefined || value.type === 'video';
+  if (applicable && source === 'youtube') {
+    if (!value.videoUrl) {
+      throw ApiError.badRequest('A YouTube video URL is required for a YouTube lesson');
+    }
+    const youtubeId = parseYoutubeId(value.videoUrl);
+    if (!youtubeId) {
+      throw ApiError.badRequest('Invalid YouTube URL. Use a watch, youtu.be, shorts, embed, or live link.');
+    }
+    value.videoSource = 'youtube';
+    value.youtubeId   = youtubeId;
+  } else {
+    value.videoSource = source === 'youtube' && !applicable ? 'upload' : source;
+    value.youtubeId   = null;
+  }
+  delete value.videoUrl;
+}
 
 const updateLessonSchema = lessonSchema.fork(
   Object.keys(lessonSchema.describe().keys),
@@ -26,6 +57,7 @@ async function createLesson(req, res, next) {
       throw ApiError.badRequest('Validation failed', error.details.map((detail) => detail.message));
     }
 
+    normalizeVideoSource(value);
     const lesson = await service.createLesson(req.params.courseId, value.sectionId, value, req.user);
     ApiResponse.created(res, { lesson }, 'Lesson created');
   } catch (err) {
@@ -58,6 +90,7 @@ async function updateLesson(req, res, next) {
       throw ApiError.badRequest('Validation failed', error.details.map((detail) => detail.message));
     }
 
+    normalizeVideoSource(value);
     const lesson = await service.updateLesson(req.params.lessonId, req.params.courseId, value, req.user);
     ApiResponse.success(res, { lesson }, 'Lesson updated');
   } catch (err) {

@@ -34,6 +34,27 @@ async function upload(req, res, next) {
   }
 }
 
+// Force-attachment download of a private file (PDFs and other lesson resources).
+async function serveDownload(req, res, next) {
+  try {
+    await service.verifyFileAccess(req.params.id, req.user);
+
+    const { absPath, mimeType, sizeBytes, originalName } = await service.getFilePath(req.params.id);
+
+    const fallbackName = originalName || `download-${req.params.id.slice(0, 8)}`;
+    res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Length', sizeBytes);
+    res.setHeader('Content-Disposition', `attachment; filename="${fallbackName.replace(/["\r\n]/g, '')}"`);
+
+    const stream = fs.createReadStream(absPath);
+    stream.on('error', () => next(ApiError.notFound('File not found')));
+    stream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Serve private file
 // Public files are served directly by Nginx.
 // This endpoint handles auth-gated private files.
@@ -123,4 +144,4 @@ async function servePublic(req, res, next) {
   }
 }
 
-module.exports = { upload, serve, remove, servePublic };
+module.exports = { upload, serve, serveDownload, remove, servePublic };

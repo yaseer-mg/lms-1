@@ -57,4 +57,16 @@ router.get   ('/gradebook/:courseId/user/:userId',
   controller.getGradebookForUser
 );
 
+// Grade an assessment that happened offline (physical exam / paper test)
+router.post  ('/gradebook/:courseId/lessons/:lessonId/manual-grades',
+  authorize('instructor','admin'),
+  controller.addManualGrades
+);
+
+// Download the full course gradebook as CSV
+router.get   ('/gradebook/:courseId/export',
+  authorize('instructor','admin'),
+  controller.exportGradebook
+);
+
 module.exports = router;

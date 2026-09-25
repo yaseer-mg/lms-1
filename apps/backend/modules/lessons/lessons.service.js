@@ -75,8 +75,8 @@ async function createLesson(courseId, sectionId, data, requestingUser) {
   const { rows } = await db.query(
     `INSERT INTO lessons
        (section_id, course_id, title, type, content, duration_seconds,
-        sort_order, is_published)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        sort_order, is_published, video_source, youtube_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
     [
       sectionId,
@@ -87,6 +87,8 @@ async function createLesson(courseId, sectionId, data, requestingUser) {
       data.durationSeconds || 0,
       orderRows[0].next,
       data.isPublished !== undefined ? data.isPublished : true,
+      data.videoSource || 'upload',
+      data.youtubeId || null,
     ]
   );
 
@@ -173,6 +175,7 @@ async function getLesson(lessonId, courseId, requestingUser) {
 async function getPreview(lessonId, courseId) {
   const { rows } = await db.query(
     `SELECT l.id, l.title, l.type, l.duration_seconds,
+            l.video_source, l.youtube_id,
             f.storage_path AS video_path
      FROM lessons l
      LEFT JOIN files f ON f.id = l.video_file_id
@@ -190,23 +193,33 @@ async function getPreview(lessonId, courseId) {
 async function updateLesson(lessonId, courseId, updates, requestingUser) {
   await verifyCourseOwner(courseId, requestingUser);
 
+  const sets   = [];
+  const params = [lessonId, courseId];
+  const add = (column, value) => {
+    if (value !== undefined) {
+      sets.push(`${column} = $${params.length + 1}`);
+      params.push(value);
+    }
+  };
+
+  add('title', updates.title);
+  add('content', updates.content);
+  add('duration_seconds', updates.durationSeconds);
+  add('is_published', updates.isPublished);
+  if (updates.videoSource !== undefined) {
+    add('video_source', updates.videoSource);
+    add('youtube_id', updates.youtubeId);
+  }
+  if (sets.length === 0) {
+    throw ApiError.badRequest('No fields to update');
+  }
+  sets.push('updated_at = NOW()');
+
   const { rows } = await db.query(
-    `UPDATE lessons SET
-       title = COALESCE($1, title),
-       content = COALESCE($2, content),
-       duration_seconds = COALESCE($3, duration_seconds),
-       is_published = COALESCE($4, is_published),
-       updated_at = NOW()
-     WHERE id = $5 AND course_id = $6 AND deleted_at IS NULL
+    `UPDATE lessons SET ${sets.join(', ')}
+     WHERE id = $1 AND course_id = $2 AND deleted_at IS NULL
      RETURNING *`,
-    [
-      updates.title,
-      updates.content,
-      updates.durationSeconds,
-      updates.isPublished,
-      lessonId,
-      courseId,
-    ]
+    params
   );
   if (!rows[0]) {
     throw ApiError.notFound('Lesson not found');

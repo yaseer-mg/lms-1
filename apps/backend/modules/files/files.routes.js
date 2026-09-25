@@ -30,6 +30,7 @@ router.use(authenticate);
 
 // File serving is after auth middleware (also accepts ?token= query param for <video> elements)
 router.get('/:id', controller.serve);
+router.get('/:id/download', controller.serveDownload);
 
 router.post('/upload', authorize('instructor', 'admin'), upload.single('file'), controller.upload);
 router.delete('/:id', authorize('instructor', 'admin'), controller.remove);

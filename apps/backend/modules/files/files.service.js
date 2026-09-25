@@ -257,7 +257,7 @@ async function saveFile({ uploadedFile, context, ownerId, uploadedBy, isPublic =
  */
 async function getFilePath(fileId) {
   const { rows } = await db.query(
-    'SELECT storage_path, is_public, mime_type, size_bytes, deleted_at FROM files WHERE id = $1',
+    'SELECT storage_path, is_public, mime_type, size_bytes, original_name, deleted_at FROM files WHERE id = $1',
     [fileId]
   );
   const file = rows[0];
@@ -266,7 +266,13 @@ async function getFilePath(fileId) {
   const absPath = storage.localPath(file.storage_path);
   if (!fs.existsSync(absPath)) throw ApiError.notFound('File not found on disk');
 
-  return { absPath, isPublic: file.is_public, mimeType: file.mime_type, sizeBytes: file.size_bytes };
+  return {
+    absPath,
+    isPublic: file.is_public,
+    mimeType: file.mime_type,
+    sizeBytes: file.size_bytes,
+    originalName: file.original_name,
+  };
 }
 
 /**

@@ -127,9 +127,30 @@ async function getGradebookForUser(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function addManualGrades(req, res, next) {
+  try {
+    const { grades, maxScore } = req.body || {};
+    const result = await service.addManualGrades(
+      req.params.courseId, req.params.lessonId, grades, maxScore, req.user
+    );
+    ApiResponse.success(res, result, 'Manual grades saved');
+  } catch (err) { next(err); }
+}
+
+async function exportGradebook(req, res, next) {
+  try {
+    const csv = await service.exportGradebookCsv(req.params.courseId, req.user);
+    const base = `gradebook-${req.params.courseId.slice(0, 8)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${base}"`);
+    res.send(csv);
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   createAssignment, updateAssignment, getAssignment, getAssignmentByLesson,
   submitAssignment, getMySubmission,
   listSubmissions, getSubmissionDetail, gradeSubmission,
   getGradebook, getCourseGradebook, getGradebookForUser,
+  addManualGrades, exportGradebook,
 };

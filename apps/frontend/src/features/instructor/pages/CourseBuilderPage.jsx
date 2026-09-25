@@ -24,6 +24,14 @@ import QuizAnalyticsModal from '../components/QuizAnalyticsModal';
 import { clsx } from 'clsx';
 
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
+
+// Client-side preview helper (authoritative validation happens server-side)
+const youtubeIdFromUrl = (url) => {
+  if (!url) return null;
+  const m = String(url).trim().match(/(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+};
+
 const LESSON_TYPES = [
   { value: 'video', label: 'Video', icon: Video },
   { value: 'text', label: 'Text', icon: FileText },
@@ -762,6 +770,8 @@ function LessonModal({ open, onClose, courseId, sectionId, lesson, courseLessons
   });
   const [videoFile, setVideoFile] = useState(null);
   const [resourceFile, setResourceFile] = useState(null);
+  const [videoSource, setVideoSource] = useState('upload');
+  const [videoUrl, setVideoUrl] = useState('');
 
   // Quiz builder state
   const [quizForm, setQuizForm] = useState({
@@ -811,8 +821,12 @@ function LessonModal({ open, onClose, courseId, sectionId, lesson, courseLessons
         content: lesson.content || '',
         durationSeconds: lesson.duration_seconds?.toString() || '',
       });
+      setVideoSource(lesson.type === 'video' && lesson.video_source === 'youtube' ? 'youtube' : 'upload');
+      setVideoUrl(lesson.youtube_id ? `https://youtu.be/${lesson.youtube_id}` : '');
     } else {
       setForm({ title: '', type: 'video', content: '', durationSeconds: '' });
+      setVideoSource('upload');
+      setVideoUrl('');
     }
     setVideoFile(null);
     setResourceFile(null);
@@ -1089,6 +1103,10 @@ function LessonModal({ open, onClose, courseId, sectionId, lesson, courseLessons
       content: form.content || undefined,
       durationSeconds: form.durationSeconds ? parseInt(form.durationSeconds, 10) : undefined,
     };
+    if (form.type === 'video') {
+      data.videoSource = videoSource;
+      if (videoSource === 'youtube') data.videoUrl = videoUrl || undefined;
+    }
     saveMutation.mutate(data);
   };
 
@@ -1117,13 +1135,80 @@ function LessonModal({ open, onClose, courseId, sectionId, lesson, courseLessons
           onChange={e => setForm(p => ({ ...p, durationSeconds: e.target.value }))}
           placeholder="e.g. 600" />
 
-        {isEditing && form.type === 'video' && (
-          <div>
-            <label className="text-sm font-medium text-gray-300 mb-1.5 block">Video upload</label>
-            <input type="file" accept="video/*" onChange={e => {
-              if (e.target.files[0]) { setVideoFile(e.target.files[0]); videoMut.mutate(e.target.files[0]); }
-            }} className="text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#1A6FBF] file:text-white file:text-sm" />
-            {videoMut.isPending && <Spinner size="sm" />}
+        {form.type === 'video' && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-medium text-gray-300 mb-1.5 block">Video source</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVideoSource('upload')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    videoSource === 'upload'
+                      ? 'bg-[#1A6FBF] text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Upload file
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoSource('youtube')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    videoSource === 'youtube'
+                      ? 'bg-[#1A6FBF] text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  YouTube link
+                </button>
+              </div>
+            </div>
+
+            {videoSource === 'youtube' ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  type="url"
+                  value={videoUrl}
+                  onChange={e => setVideoUrl(e.target.value)}
+                  placeholder="Paste a YouTube link — watch?v=…, youtu.be/…, shorts/, embed/, live/"
+                  className="input"
+                />
+                {(() => {
+                  const yid = youtubeIdFromUrl(videoUrl);
+                  if (yid) {
+                    return (
+                      <div className="aspect-video w-full rounded-lg overflow-hidden border border-white/10">
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${yid}`}
+                          title="Video preview"
+                          className="w-full h-full"
+                          allowFullScreen
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        />
+                      </div>
+                    );
+                  }
+                  if (videoUrl) {
+                    return <p className="text-sm text-amber-400">Enter a valid YouTube link to preview it.</p>;
+                  }
+                  return <p className="text-xs text-gray-500">No server storage used — the video streams from YouTube. Available only while connected.</p>;
+                })()}
+              </div>
+            ) : (
+              <div>
+                {isEditing ? (
+                  <>
+                    <input type="file" accept="video/*" onChange={e => {
+                      if (e.target.files[0]) { setVideoFile(e.target.files[0]); videoMut.mutate(e.target.files[0]); }
+                    }} className="text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#1A6FBF] file:text-white file:text-sm" />
+                    {videoMut.isPending && <Spinner size="sm" />}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500">Create the lesson first, then upload the video file from the lesson list.</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { BookOpen, FileText, CheckCircle2, XCircle, BarChart3, ArrowLeft, Download, Eye } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { BookOpen, FileText, CheckCircle2, XCircle, BarChart3, ArrowLeft, Download, Eye, Upload, Save, X } from 'lucide-react';
 import { clsx } from 'clsx';
+import toast from 'react-hot-toast';
 import api from '../../../shared/api/client';
 import { submissionsApi } from '../../../shared/api';
 import Spinner from '../../../shared/components/ui/spinner';
@@ -9,6 +10,13 @@ import Spinner from '../../../shared/components/ui/spinner';
 export default function InstructorGradebookPage() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualLessonId, setManualLessonId] = useState('');
+  const [manualMax, setManualMax] = useState('100');
+  const [manualScores, setManualScores] = useState({});
+
+  const queryClient = useQueryClient();
 
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
     queryKey: ['instructor-courses-all'],
@@ -29,6 +37,68 @@ export default function InstructorGradebookPage() {
 
   const graderows = gbData?.graderows || [];
   const columns = gbData?.columns || [];
+
+  const course = courses.find(c => c.id === selectedCourse);
+
+  const { data: structure } = useQuery({
+    queryKey: ['course-structure', course?.slug],
+    queryFn: () => api.get(`/courses/${course.slug}`).then(r => r.data.data.course),
+    enabled: !!course?.slug,
+  });
+
+  const lessonsList = (structure?.sections || []).flatMap(s =>
+    (s.lessons || []).map(l => ({ ...l, sectionTitle: s.title }))
+  );
+
+  const openManual = () => {
+    setManualOpen(true);
+    setManualLessonId('');
+    setManualMax('100');
+    setManualScores({});
+  };
+
+  const selectManualLesson = (id) => {
+    setManualLessonId(id);
+    const prefill = {};
+    for (const row of graderows) {
+      const g = row.grades[id];
+      if (g && g.gradeType === 'manual') prefill[row.student.id] = String(g.score);
+    }
+    setManualScores(prefill);
+  };
+
+  const manualMut = useMutation({
+    mutationFn: () => {
+      const grades = Object.entries(manualScores)
+        .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+        .map(([userId, score]) => ({ userId, score: Number(score) }));
+      return api.post(
+        `/submissions/gradebook/${selectedCourse}/lessons/${manualLessonId}/manual-grades`,
+        { grades, maxScore: Number(manualMax) }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['course-gradebook', selectedCourse] });
+      toast.success('Manual grades saved');
+      setManualOpen(false);
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to save grades'),
+  });
+
+  const downloadCsv = () => {
+    api.get(`/submissions/gradebook/${selectedCourse}/export`, { responseType: 'blob' })
+      .then(r => {
+        const url = URL.createObjectURL(new Blob([r.data], { type: 'text/csv;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gradebook-${(course?.title || 'course').replace(/\W+/g, '-').toLowerCase()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(err => toast.error(err.response?.data?.message || 'Failed to download grades'));
+  };
 
   if (!selectedCourse) {
     return (
@@ -66,8 +136,6 @@ export default function InstructorGradebookPage() {
     );
   }
 
-  const course = courses.find(c => c.id === selectedCourse);
-
   return (
     <div>
       {/* Header */}
@@ -83,6 +151,16 @@ export default function InstructorGradebookPage() {
               {graderows.length} student{graderows.length !== 1 ? 's' : ''} · {columns.length} graded item{columns.length !== 1 ? 's' : ''}
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={openManual} className="btn-primary text-xs px-3 py-2 flex items-center gap-1.5">
+            <Upload size={14} />
+            Enter Manual Grades
+          </button>
+          <button onClick={downloadCsv} className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5">
+            <Download size={14} />
+            Download CSV
+          </button>
         </div>
       </div>
 
@@ -224,6 +302,115 @@ export default function InstructorGradebookPage() {
               <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Manual grades modal */}
+      {manualOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => { if (!manualMut.isPending) setManualOpen(false); }}>
+          <div className="bg-[#0D1B2A] border border-gray-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <div>
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <Upload size={16} className="text-blue-400" />
+                  Manual Grades
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  For exams done on paper / physically
+                </p>
+              </div>
+              <button onClick={() => setManualOpen(false)} className="text-gray-500 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Assessment lesson</label>
+                  <select
+                    value={manualLessonId}
+                    onChange={e => selectManualLesson(e.target.value)}
+                    className="w-full bg-[#0A1628] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                  >
+                    <option value="">Select a lesson…</option>
+                    {lessonsList.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.title} ({l.sectionTitle || 'section'} · {l.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Maximum score</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={manualMax}
+                    onChange={e => setManualMax(e.target.value)}
+                    className="w-full bg-[#0A1628] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+                  />
+                </div>
+              </div>
+
+              {manualLessonId && graderows.length > 0 && (
+                <div className="border border-gray-700 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-[1fr_90px_110px] px-4 py-2 bg-[#0A1628] text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                    <span>Student</span>
+                    <span className="text-center">Score</span>
+                    <span className="text-right">Status</span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {graderows.map(row => {
+                      const val = manualScores[row.student.id] ?? '';
+                      const num = Number(val);
+                      const valid = val !== '' && !Number.isNaN(num) && num >= 0 && num <= Number(manualMax || 0);
+                      return (
+                        <div key={row.student.id} className="grid grid-cols-[1fr_90px_110px] items-center gap-2 px-4 py-2 border-t border-gray-800/50">
+                          <span className="text-sm text-white truncate">
+                            {row.student.firstName} {row.student.lastName}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={manualMax || undefined}
+                            step="0.5"
+                            value={val}
+                            onChange={e => setManualScores(prev => ({ ...prev, [row.student.id]: e.target.value }))}
+                            placeholder="—"
+                            className="w-full bg-[#0A1628] border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white text-center"
+                          />
+                          <span className="text-right text-xs">
+                            {valid
+                              ? (num >= Number(manualMax || 0) * 0.5
+                                  ? <span className="text-green-400">Pass</span>
+                                  : <span className="text-red-400">Fail</span>)
+                              : <span className="text-gray-600">—</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setManualOpen(false)} className="btn-ghost text-sm px-4 py-2">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => manualMut.mutate()}
+                  disabled={!manualLessonId || manualMut.isPending}
+                  className="btn-primary text-sm px-4 py-2 flex items-center gap-1.5"
+                >
+                  {manualMut.isPending ? <Spinner /> : <Save size={14} />}
+                  Save Grades
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

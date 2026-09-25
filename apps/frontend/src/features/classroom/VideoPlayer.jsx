@@ -25,7 +25,8 @@ import {
 const HEARTBEAT_INTERVAL = 10_000;   // 10 seconds
 
 export default function VideoPlayer({
-  lessonId, courseId, videoUrl, durationSecs = 0, onComplete, onNext
+  lessonId, courseId, videoUrl, durationSecs = 0, onComplete, onNext,
+  videoSource = 'upload', youtubeId,
 }) {
   const videoRef       = useRef(null);
   const heartbeatTimer = useRef(null);
@@ -46,6 +47,10 @@ export default function VideoPlayer({
   const [isOnline,      setIsOnline]      = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
   const fileId = useMemo(() => fileIdFromUrl(videoUrl), [videoUrl]);
+  const isYouTube  = videoSource === 'youtube' && !!youtubeId;
+  const embedUrl   = isYouTube
+    ? `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&playsinline=1`
+    : null;
   const offlineMissing = !isOnline && offlineMeta === null;
 
   // ── Online/offline status ─────────────────────
@@ -298,45 +303,73 @@ export default function VideoPlayer({
     <div className="flex flex-col bg-gray-900 rounded-xl overflow-hidden">
 
       {/* ── Video element ── */}
-      <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-        {offlineMissing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-            <div className="text-center px-6">
-              <p className="text-gray-200 font-medium mb-1">Video not available offline</p>
-              <p className="text-gray-500 text-sm">Reconnect to download it for offline viewing.</p>
+      {isYouTube ? (
+        <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+          {!isOnline && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+              <div className="text-center px-6">
+                <p className="text-gray-200 font-medium mb-1">Video not available offline</p>
+                <p className="text-gray-500 text-sm">This lesson streams from YouTube. Reconnect to watch it.</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          {isOnline && (
+            <iframe
+              src={embedUrl}
+              title="YouTube video player"
+              className="w-full h-full"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          )}
+          {isCompleted && (
+            <div className="absolute top-3 right-3 bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+              <span>✓</span> Completed
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {offlineMissing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+              <div className="text-center px-6">
+                <p className="text-gray-200 font-medium mb-1">Video not available offline</p>
+                <p className="text-gray-500 text-sm">Reconnect to download it for offline viewing.</p>
+              </div>
+            </div>
+          )}
 
-        <video
-          ref={videoRef}
-          className="w-full h-full"
-          src={offlineMissing ? undefined : (!isOnline && blobUrl ? blobUrl : videoUrl)}
-          controls
-          controlsList="nodownload"
-          onPlay={startHeartbeat}
-          onPause={stopHeartbeat}
-          onEnded={handleEnded}
-          onLoadedMetadata={() => {
-            setLoading(false);
-            if (resumePos > 10 && videoRef.current) {
-              videoRef.current.currentTime = resumePos;
-            }
-          }}
-        />
+          <video
+            ref={videoRef}
+            className="w-full h-full"
+            src={offlineMissing ? undefined : (!isOnline && blobUrl ? blobUrl : videoUrl)}
+            controls
+            controlsList="nodownload"
+            onPlay={startHeartbeat}
+            onPause={stopHeartbeat}
+            onEnded={handleEnded}
+            onLoadedMetadata={() => {
+              setLoading(false);
+              if (resumePos > 10 && videoRef.current) {
+                videoRef.current.currentTime = resumePos;
+              }
+            }}
+          />
 
-        {/* Completion badge overlay */}
-        {isCompleted && (
-          <div className="absolute top-3 right-3 bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
-            <span>✓</span> Completed
-          </div>
-        )}
-      </div>
+          {/* Completion badge overlay */}
+          {isCompleted && (
+            <div className="absolute top-3 right-3 bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
+              <span>✓</span> Completed
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Progress bar ── */}
       {durationSecs > 0 && (
@@ -364,32 +397,36 @@ export default function VideoPlayer({
           {isCompleted ? 'Completed' : 'Mark Complete'}
         </button>
 
-        {/* Bookmark button */}
-        <button
-          onClick={() => setShowBookmarkInput(v => !v)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
-        >
-          🔖 Bookmark
-        </button>
+        {/* Bookmark button (uploaded videos only) */}
+        {!isYouTube && (
+          <button
+            onClick={() => setShowBookmarkInput(v => !v)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+          >
+            🔖 Bookmark
+          </button>
+        )}
 
-        {/* Download for offline */}
-        <button
-          onClick={offlineMeta ? handleRemoveOffline : handleDownload}
-          disabled={!isOnline || saving}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            offlineMeta
-              ? 'bg-green-800/60 hover:bg-green-700/60 text-green-200'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-          }`}
-        >
-          {saving
-            ? '⏳ Downloading…'
-            : offlineMeta
-              ? '✓ Offline Saved'
-              : isOnline
-                ? '⬇ Download for Offline'
-                : '⬇ Offline'}
-        </button>
+        {/* Download for offline (uploaded videos only) */}
+        {!isYouTube && (
+          <button
+            onClick={offlineMeta ? handleRemoveOffline : handleDownload}
+            disabled={!isOnline || saving}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              offlineMeta
+                ? 'bg-green-800/60 hover:bg-green-700/60 text-green-200'
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+            }`}
+          >
+            {saving
+              ? '⏳ Downloading…'
+              : offlineMeta
+                ? '✓ Offline Saved'
+                : isOnline
+                  ? '⬇ Download for Offline'
+                  : '⬇ Offline'}
+          </button>
+        )}
 
         {/* Next lesson */}
         {onNext && (
@@ -402,8 +439,8 @@ export default function VideoPlayer({
         )}
       </div>
 
-      {/* ── Bookmark input ── */}
-      {showBookmarkInput && (
+      {/* ── Bookmark input (uploaded videos only) ── */}
+      {!isYouTube && showBookmarkInput && (
         <div className="flex gap-2 px-4 py-3 bg-gray-800 border-t border-gray-700">
           <input
             type="text"
@@ -423,8 +460,8 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {/* ── Bookmark list ── */}
-      {bookmarks.length > 0 && (
+      {/* ── Bookmark list (uploaded videos only) ── */}
+      {!isYouTube && bookmarks.length > 0 && (
         <div className="px-4 py-3 bg-gray-800 border-t border-gray-700">
           <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">
             Your Bookmarks

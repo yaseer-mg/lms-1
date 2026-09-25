@@ -69,7 +69,16 @@ app.set('io', io);
 app.use('/api/v1/payments/webhook', express.raw({ type: '*/*', limit: '2mb' }));
 
 // ── Global Middleware ─────────────────────────
-app.use(helmet());
+// CSP is extended so enrolled students can embed YouTube lessons
+// (frame-src) and preview thumbnails (img-src) provided by YouTube.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      'frame-src': ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
+      'img-src':   ["'self'", 'data:', 'https://i.ytimg.com', 'https://img.youtube.com'],
+    },
+  },
+}));
 app.use(cors({ origin: env.APP_URL, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, FileText, MessageSquare, Megaphone, CalendarDays, CheckCircle, Play, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, MessageSquare, Megaphone, CalendarDays, CheckCircle, Play, Menu, Download } from 'lucide-react';
 import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 import api            from '../../../shared/api/client';
@@ -266,11 +266,15 @@ export default function ClassroomPage() {
             <div className="max-w-4xl mx-auto flex flex-col gap-6">
 
               {/* VIDEO lesson */}
-              {lessonData.type === 'video' && lessonData.video_file_id && (
+              {lessonData.type === 'video' && (lessonData.video_file_id || lessonData.video_source === 'youtube') && (
                 <VideoPlayer
                   lessonId={lessonData.id}
                   courseId={courseId}
-                  videoUrl={`/api/v1/files/${lessonData.video_file_id}?token=${encodeURIComponent(accessToken || '')}`}
+                  videoUrl={lessonData.video_file_id
+                    ? `/api/v1/files/${lessonData.video_file_id}?token=${encodeURIComponent(accessToken || '')}`
+                    : undefined}
+                  videoSource={lessonData.video_source || 'upload'}
+                  youtubeId={lessonData.youtube_id}
                   durationSecs={lessonData.duration_seconds}
                   onComplete={handleLessonComplete}
                   onNext={nextLesson ? () => goToLesson(nextLesson.id) : undefined}
@@ -383,17 +387,28 @@ export default function ClassroomPage() {
                     </p>
                     <div className="flex flex-col gap-2">
                       {lessonData.resources.map(r => (
-                        <a
+                        <div
                           key={r.id}
-                          href={`/api/v1/files/${r.file_id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-sm text-[#3B9EE8]
-                                     hover:underline"
+                          className="flex items-center gap-2 text-sm"
                         >
-                          <FileText size={14} />
-                          {r.title}
-                        </a>
+                          <a
+                            href={`/api/v1/files/${r.file_id}?token=${encodeURIComponent(accessToken || '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-[#3B9EE8] hover:underline min-w-0"
+                          >
+                            <FileText size={14} className="shrink-0" />
+                            <span className="truncate">{r.title}</span>
+                          </a>
+                          <a
+                            href={`/api/v1/files/${r.file_id}/download?token=${encodeURIComponent(accessToken || '')}`}
+                            download
+                            title="Download"
+                            className="ml-auto shrink-0 text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Download size={14} />
+                          </a>
+                        </div>
                       ))}
                     </div>
                   </div>
