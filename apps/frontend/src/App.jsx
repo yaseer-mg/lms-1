@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore }   from './shared/stores/authStore';
@@ -9,44 +9,68 @@ import { prefetchStudentData } from './shared/offline/prefetch';
 import AppLayout, { AuthLayout, ClassroomLayout } from './shared/components/layout/AppLayout';
 import { RequireAuth, RequireRole, GuestOnly }     from './app/guards';
 import { PageLoader } from './shared/components/ui/spinner';
+import ErrorBoundary from './shared/components/ErrorBoundary';
+
+// If a lazily loaded chunk fails (stale service worker cache after a deploy,
+// interrupted download), reload once with the fresh index.html instead of
+// leaving the user on a blank screen.
+const LAZY_RELOAD_KEY = '__lazy_chunk_reload__';
+function lazyRetry(factory) {
+  return lazy(() =>
+    factory()
+      .then((mod) => {
+        try { sessionStorage.removeItem(LAZY_RELOAD_KEY); } catch { /* ignore */ }
+        return mod;
+      })
+      .catch((err) => {
+        let retried = false;
+        try {
+          retried = sessionStorage.getItem(LAZY_RELOAD_KEY) === '1';
+          sessionStorage.setItem(LAZY_RELOAD_KEY, '1');
+        } catch { /* ignore */ }
+        if (!retried) window.location.reload();
+        throw err;
+      })
+  );
+}
 
 // ── Lazy pages ────────────────────────────────
-const LoginPage           = lazy(() => import('./features/auth/pages/LoginPage'));
-const ForgotPasswordPage  = lazy(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
-const ResetPasswordPage   = lazy(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
-const ChangePasswordPage  = lazy(() => import('./features/auth/pages/ChangePasswordPage'));
-const VerifyEmailPage     = lazy(() => import('./features/auth/pages/VerifyEmailPage'));
-const StudentDashboard    = lazy(() => import('./features/dashboard/StudentDashboard'));
-const CourseCatalogPage   = lazy(() => import('./features/courses/pages/CourseCatalogPage'));
-const CourseDetailPage    = lazy(() => import('./features/courses/pages/CourseDetailPage'));
-const ClassroomPage       = lazy(() => import('./features/classroom/pages/ClassroomPage'));
-const MessagesPage        = lazy(() => import('./features/messages/pages/MessagesPage'));
-const InstructorDashboard = lazy(() => import('./features/instructor/pages/InstructorDashboardPage'));
-const AdminDashboard      = lazy(() => import('./features/admin/pages/AdminDashboardPage'));
-const ProfilePage         = lazy(() => import('./features/auth/pages/ProfilePage'));
-const NotificationsPage   = lazy(() => import('./features/notifications/pages/NotificationsPage'));
-const AdminUsersPage      = lazy(() => import('./features/admin/pages/AdminUsersPage'));
-const AdminCoursesPage    = lazy(() => import('./features/admin/pages/AdminCoursesPage'));
-const AdminCreateCoursePage = lazy(() => import('./features/admin/pages/AdminCreateCoursePage'));
-const AdminEnrollmentsPage = lazy(() => import('./features/admin/pages/AdminEnrollmentsPage'));
-const AdminAnalyticsPage = lazy(() => import('./features/admin/pages/AdminAnalyticsPage'));
-const AuditLogPage       = lazy(() => import('./features/admin/pages/AuditLogPage'));
-const AdminSettingsPage  = lazy(() => import('./features/admin/pages/AdminSettingsPage'));
-const PaymentGatewayPage = lazy(() => import('./features/admin/pages/PaymentGatewayPage'));
-const InstructorAnalyticsPage = lazy(() => import('./features/instructor/pages/InstructorAnalyticsPage'));
-const CourseAnalyticsPage = lazy(() => import('./features/instructor/pages/CourseAnalyticsPage'));
-const CourseBuilderPage = lazy(() => import('./features/instructor/pages/CourseBuilderPage'));
-const QuestionBankPage   = lazy(() => import('./features/instructor/pages/QuestionBankPage'));
-const CourseGroupsPage   = lazy(() => import('./features/instructor/pages/CourseGroupsPage'));
-const CourseCertificatesPage = lazy(() => import('./features/instructor/pages/CourseCertificatesPage'));
-const InstructorStudentsPage = lazy(() => import('./features/instructor/pages/InstructorStudentsPage'));
-const InstructorGradebookPage = lazy(() => import('./features/instructor/pages/InstructorGradebookPage'));
-const SubmissionsPage = lazy(() => import('./features/instructor/pages/SubmissionsPage'));
-const ForumThreadsPage = lazy(() => import('./features/forums/pages/ForumThreadsPage'));
-const ForumThreadDetailPage = lazy(() => import('./features/forums/pages/ForumThreadDetailPage'));
-const CertificatesPage = lazy(() => import('./features/certificates/pages/CertificatesPage'));
-const LeaderboardPage = lazy(() => import('./features/certificates/pages/LeaderboardPage'));
-const CalendarPage = lazy(() => import('./features/calendar/pages/CalendarPage'));
+const LoginPage           = lazyRetry(() => import('./features/auth/pages/LoginPage'));
+const ForgotPasswordPage  = lazyRetry(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage   = lazyRetry(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const ChangePasswordPage  = lazyRetry(() => import('./features/auth/pages/ChangePasswordPage'));
+const VerifyEmailPage     = lazyRetry(() => import('./features/auth/pages/VerifyEmailPage'));
+const StudentDashboard    = lazyRetry(() => import('./features/dashboard/StudentDashboard'));
+const CourseCatalogPage   = lazyRetry(() => import('./features/courses/pages/CourseCatalogPage'));
+const CourseDetailPage    = lazyRetry(() => import('./features/courses/pages/CourseDetailPage'));
+const ClassroomPage       = lazyRetry(() => import('./features/classroom/pages/ClassroomPage'));
+const MessagesPage        = lazyRetry(() => import('./features/messages/pages/MessagesPage'));
+const InstructorDashboard = lazyRetry(() => import('./features/instructor/pages/InstructorDashboardPage'));
+const AdminDashboard      = lazyRetry(() => import('./features/admin/pages/AdminDashboardPage'));
+const ProfilePage         = lazyRetry(() => import('./features/auth/pages/ProfilePage'));
+const NotificationsPage   = lazyRetry(() => import('./features/notifications/pages/NotificationsPage'));
+const AdminUsersPage      = lazyRetry(() => import('./features/admin/pages/AdminUsersPage'));
+const AdminCoursesPage    = lazyRetry(() => import('./features/admin/pages/AdminCoursesPage'));
+const AdminCreateCoursePage = lazyRetry(() => import('./features/admin/pages/AdminCreateCoursePage'));
+const AdminEnrollmentsPage = lazyRetry(() => import('./features/admin/pages/AdminEnrollmentsPage'));
+const AdminAnalyticsPage = lazyRetry(() => import('./features/admin/pages/AdminAnalyticsPage'));
+const AuditLogPage       = lazyRetry(() => import('./features/admin/pages/AuditLogPage'));
+const AdminSettingsPage  = lazyRetry(() => import('./features/admin/pages/AdminSettingsPage'));
+const PaymentGatewayPage = lazyRetry(() => import('./features/admin/pages/PaymentGatewayPage'));
+const InstructorAnalyticsPage = lazyRetry(() => import('./features/instructor/pages/InstructorAnalyticsPage'));
+const CourseAnalyticsPage = lazyRetry(() => import('./features/instructor/pages/CourseAnalyticsPage'));
+const CourseBuilderPage = lazyRetry(() => import('./features/instructor/pages/CourseBuilderPage'));
+const QuestionBankPage   = lazyRetry(() => import('./features/instructor/pages/QuestionBankPage'));
+const CourseGroupsPage   = lazyRetry(() => import('./features/instructor/pages/CourseGroupsPage'));
+const CourseCertificatesPage = lazyRetry(() => import('./features/instructor/pages/CourseCertificatesPage'));
+const InstructorStudentsPage = lazyRetry(() => import('./features/instructor/pages/InstructorStudentsPage'));
+const InstructorGradebookPage = lazyRetry(() => import('./features/instructor/pages/InstructorGradebookPage'));
+const SubmissionsPage = lazyRetry(() => import('./features/instructor/pages/SubmissionsPage'));
+const ForumThreadsPage = lazyRetry(() => import('./features/forums/pages/ForumThreadsPage'));
+const ForumThreadDetailPage = lazyRetry(() => import('./features/forums/pages/ForumThreadDetailPage'));
+const CertificatesPage = lazyRetry(() => import('./features/certificates/pages/CertificatesPage'));
+const LeaderboardPage = lazyRetry(() => import('./features/certificates/pages/LeaderboardPage'));
+const CalendarPage = lazyRetry(() => import('./features/calendar/pages/CalendarPage'));
 
 // Prefetch student data when a student session is restored
 function OfflinePrefetch() {
@@ -71,9 +95,10 @@ function SocketInit() {
   return null;
 }
 
-export default function App() {
+function AppRoutes() {
+  const location = useLocation();
   return (
-    <BrowserRouter>
+    <ErrorBoundary resetKey={location.pathname}>
       <SocketInit />
       <OfflinePrefetch />
       <Suspense fallback={<PageLoader />}>
@@ -164,6 +189,14 @@ export default function App() {
 
         </Routes>
       </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

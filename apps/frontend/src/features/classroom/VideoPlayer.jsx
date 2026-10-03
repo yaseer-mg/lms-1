@@ -224,6 +224,20 @@ export default function VideoPlayer({
     };
   }, [lessonId, stopHeartbeat]);
 
+  // ── Offline-aware mutations ──────────────────
+  // Declared before handleEnded: the useCallback dependency array below
+  // reads it during render, so it must already be initialised.
+  const completeMut = useMutation(offlineMutation('video-toggle-complete', {
+    onError: () => {
+      setIsCompleted(true);
+      onComplete?.();
+    },
+  }));
+
+  const addBookmarkMut = useMutation(offlineMutation('video-bookmark-add'));
+
+  const removeBookmarkMut = useMutation(offlineMutation('video-bookmark-delete'));
+
   // ── Video ended ───────────────────────────────
   const handleEnded = useCallback(async () => {
     stopHeartbeat();
@@ -265,18 +279,6 @@ export default function VideoPlayer({
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [isYouTube, handleEnded]);
-
-  // ── Offline-aware mutations ──────────────────
-  const completeMut = useMutation(offlineMutation('video-toggle-complete', {
-    onError: () => {
-      setIsCompleted(true);
-      onComplete?.();
-    },
-  }));
-
-  const addBookmarkMut = useMutation(offlineMutation('video-bookmark-add'));
-
-  const removeBookmarkMut = useMutation(offlineMutation('video-bookmark-delete'));
 
   // ── Bookmarks ─────────────────────────────────
   const addBookmark = () => {

@@ -6,6 +6,7 @@ import { ThemeProvider } from './shared/contexts/ThemeContext';
 import { createOfflineQueryClient, persistOptions, setupOfflineSync } from './shared/offline/queryClient';
 import { registerRootClient } from './shared/offline/mutations';
 import { registerMutationDefaults } from './shared/offline/mutations.registry';
+import { ensureFreshBuild } from './shared/offline/updateGuard';
 import App from './App';
 import './index.css';
 
@@ -13,6 +14,9 @@ const queryClient = createOfflineQueryClient();
 setupOfflineSync(queryClient);
 registerRootClient(queryClient);
 registerMutationDefaults(queryClient);
+
+// Never run a mix of old/new chunks after a deploy (non-blocking).
+ensureFreshBuild();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
