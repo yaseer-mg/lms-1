@@ -90,12 +90,12 @@ export default function NotificationsPage() {
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="font-display font-bold text-2xl text-white">Notifications</h1>
           <p className="text-gray-400 text-sm mt-1">Stay updated with your learning activity</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setUnreadOnly(!unreadOnly)}
             className={clsx('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
@@ -125,9 +125,9 @@ export default function NotificationsPage() {
             {ALL_TYPES.map(({ type, label }) => {
               const pref = getPref(type);
               return (
-                <div key={type} className="flex items-center justify-between py-2.5">
+                <div key={type} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                   <span className="text-sm text-gray-300">{TYPE_ICONS[type] || '🔔'} {label}</span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
                       <input type="checkbox" checked={pref.inApp}
                         onChange={() => updatePrefMut.mutate({ type, data: { inApp: !pref.inApp, email: pref.email } })}
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
           <div className="divide-y divide-gray-800">
             {notifications.map(n => (
               <div key={n.id}
-                className={clsx('flex items-start gap-3 px-5 py-4 transition-colors',
+                className={clsx('flex flex-wrap items-start gap-3 px-4 sm:px-5 py-4 transition-colors',
                   !n.is_read && 'bg-[#1A6FBF]/5'
                 )}
               >

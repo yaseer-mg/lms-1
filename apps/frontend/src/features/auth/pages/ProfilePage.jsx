@@ -44,7 +44,7 @@ export default function ProfilePage() {
 
       <div className="card">
         <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))} className="flex flex-col gap-4">
-          <div className="flex items-center gap-4 mb-2">
+          <div className="flex flex-wrap items-center gap-4 mb-2">
             <div className="w-16 h-16 rounded-full bg-[#1A6FBF] flex items-center justify-center text-white text-xl font-bold">
               {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}{user?.last_name?.[0] || ''}
             </div>

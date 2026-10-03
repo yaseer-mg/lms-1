@@ -139,25 +139,25 @@ export default function InstructorGradebookPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex items-center gap-3 min-w-0">
           <button onClick={() => { setSelectedCourse(null); setSelectedStudent(null); }}
-            className="text-gray-400 hover:text-white transition-colors">
+            className="text-gray-400 hover:text-white transition-colors shrink-0">
             <ArrowLeft size={20} />
           </button>
-          <div>
-            <h1 className="font-display font-bold text-2xl text-white">{course?.title}</h1>
+          <div className="min-w-0">
+            <h1 className="font-display font-bold text-2xl text-white truncate">{course?.title}</h1>
             <p className="text-gray-400 text-sm mt-1">
               {graderows.length} student{graderows.length !== 1 ? 's' : ''} · {columns.length} graded item{columns.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={openManual} className="btn-primary text-xs px-3 py-2 flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={openManual} className="btn-primary text-xs px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
             <Upload size={14} />
             Enter Manual Grades
           </button>
-          <button onClick={downloadCsv} className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5">
+          <button onClick={downloadCsv} className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
             <Download size={14} />
             Download CSV
           </button>
@@ -357,7 +357,7 @@ export default function InstructorGradebookPage() {
 
               {manualLessonId && graderows.length > 0 && (
                 <div className="border border-gray-700 rounded-xl overflow-hidden">
-                  <div className="grid grid-cols-[1fr_90px_110px] px-4 py-2 bg-[#0A1628] text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                  <div className="grid grid-cols-[1fr_56px_76px] sm:grid-cols-[1fr_90px_110px] px-3 sm:px-4 py-2 bg-[#0A1628] text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
                     <span>Student</span>
                     <span className="text-center">Score</span>
                     <span className="text-right">Status</span>
@@ -368,7 +368,7 @@ export default function InstructorGradebookPage() {
                       const num = Number(val);
                       const valid = val !== '' && !Number.isNaN(num) && num >= 0 && num <= Number(manualMax || 0);
                       return (
-                        <div key={row.student.id} className="grid grid-cols-[1fr_90px_110px] items-center gap-2 px-4 py-2 border-t border-gray-800/50">
+                        <div key={row.student.id} className="grid grid-cols-[1fr_56px_76px] sm:grid-cols-[1fr_90px_110px] items-center gap-2 px-3 sm:px-4 py-2 border-t border-gray-800/50">
                           <span className="text-sm text-white truncate">
                             {row.student.firstName} {row.student.lastName}
                           </span>

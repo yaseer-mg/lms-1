@@ -49,7 +49,9 @@ export default function VideoPlayer({
   const fileId = useMemo(() => fileIdFromUrl(videoUrl), [videoUrl]);
   const isYouTube  = videoSource === 'youtube' && !!youtubeId;
   const embedUrl   = isYouTube
-    ? `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&playsinline=1`
+    ? `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0&playsinline=1&enablejsapi=1${
+        typeof window !== 'undefined' ? `&origin=${encodeURIComponent(window.location.origin)}` : ''
+      }`
     : null;
   const offlineMissing = !isOnline && offlineMeta === null;
 
@@ -225,47 +227,56 @@ export default function VideoPlayer({
   // ── Video ended ───────────────────────────────
   const handleEnded = useCallback(async () => {
     stopHeartbeat();
-    // Force final heartbeat with full duration
-    try {
-      await apiClient.post('/progress/heartbeat', {
+
+    // Best-effort final heartbeat to record the full watch
+    if (!isYouTube && durationSecs > 0) {
+      apiClient.post('/progress/heartbeat', {
         lessonId, courseId,
         positionSecs: durationSecs,
         watchedSecs:  durationSecs,
-      });
-      setIsCompleted(true);
-      setProgress(100);
-      onComplete?.();
-    } catch (err) {
-      console.error('[VideoPlayer] Final heartbeat failed:', err);
+      }).catch((err) => { console.warn('[VideoPlayer] Final heartbeat failed:', err.message); });
     }
-  }, [lessonId, courseId, durationSecs, stopHeartbeat, onComplete]);
+
+    setIsCompleted(true);
+    setProgress(100);
+    onComplete?.();
+
+    // Record completion — offline-aware (queued + synced when back online)
+    completeMut.mutate(
+      { lessonId, courseId, complete: true },
+      {
+        onSuccess: (res) => {
+          if (res?.data?.data?.is_completed) onComplete?.();
+        },
+      }
+    );
+  }, [lessonId, courseId, durationSecs, stopHeartbeat, isYouTube, completeMut, onComplete]);
+
+  // ── Detect YouTube playback end (IFrame API postMessage) ──
+  useEffect(() => {
+    if (!isYouTube) return undefined;
+    const onMessage = (evt) => {
+      let parsed;
+      try { parsed = JSON.parse(evt.data); } catch { return; }
+      if (parsed && parsed.event === 'infoDelivery' && parsed.info && parsed.info.playerState === 0) {
+        handleEnded();
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [isYouTube, handleEnded]);
 
   // ── Offline-aware mutations ──────────────────
-  const toggleCompleteMut = useMutation(offlineMutation('video-toggle-complete', {
+  const completeMut = useMutation(offlineMutation('video-toggle-complete', {
     onError: () => {
-      const completed = !isCompleted;
-      setIsCompleted(completed);
-      if (completed) onComplete?.();
+      setIsCompleted(true);
+      onComplete?.();
     },
   }));
 
   const addBookmarkMut = useMutation(offlineMutation('video-bookmark-add'));
 
   const removeBookmarkMut = useMutation(offlineMutation('video-bookmark-delete'));
-
-  // ── Manual complete toggle ────────────────────
-  const toggleComplete = () => {
-    toggleCompleteMut.mutate(
-      { lessonId, courseId, complete: !isCompleted },
-      {
-        onSuccess: (res) => {
-          const completed = !!res?.data?.data?.is_completed;
-          setIsCompleted(completed);
-          if (completed) onComplete?.();
-        },
-      }
-    );
-  };
 
   // ── Bookmarks ─────────────────────────────────
   const addBookmark = () => {
@@ -383,19 +394,6 @@ export default function VideoPlayer({
 
       {/* ── Controls bar ── */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-800 gap-3 flex-wrap">
-
-        {/* Mark complete button */}
-        <button
-          onClick={toggleComplete}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isCompleted
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-          }`}
-        >
-          <span>{isCompleted ? '✓' : '○'}</span>
-          {isCompleted ? 'Completed' : 'Mark Complete'}
-        </button>
 
         {/* Bookmark button (uploaded videos only) */}
         {!isYouTube && (

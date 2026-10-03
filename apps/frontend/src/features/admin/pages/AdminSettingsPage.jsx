@@ -71,7 +71,7 @@ export default function AdminSettingsPage() {
         {/* Logo upload */}
         <div className="card">
           <label className="text-sm font-medium text-gray-300 mb-2 block">Institution Logo</label>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="w-16 h-16 bg-[#1A6FBF] rounded-xl flex items-center justify-center overflow-hidden shrink-0">
               {s.institution_logo_url ? (
                 <img src={s.institution_logo_url} alt="Logo" className="w-full h-full object-cover" />
@@ -79,13 +79,13 @@ export default function AdminSettingsPage() {
                 <Settings size={24} className="text-white" />
               )}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <input type="file" accept="image/*" onChange={e => {
                 if (e.target.files[0]) logoUploadMut.mutate(e.target.files[0]);
-              }} className="text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#1A6FBF] file:text-white file:text-sm" />
+              }} className="max-w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#1A6FBF] file:text-white file:text-sm" />
               {logoUploadMut.isPending && <Spinner size="sm" />}
               {s.institution_logo_url && (
-                <p className="text-xs text-gray-500 mt-1">Current logo URL: {s.institution_logo_url}</p>
+                <p className="text-xs text-gray-500 mt-1 break-all">Current logo URL: {s.institution_logo_url}</p>
               )}
             </div>
           </div>

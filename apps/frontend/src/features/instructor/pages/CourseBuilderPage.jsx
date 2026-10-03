@@ -170,6 +170,19 @@ export default function CourseBuilderPage() {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
 
+  const deleteLessonMut = useMutation({
+    mutationFn: ({ sectionId, lessonId }) => lessonsApi.delete(id, lessonId),
+    onSuccess: (_res, vars) => {
+      setSections(prev => prev.map(s => s.id === vars.sectionId
+        ? { ...s, lessons: (s.lessons || []).filter(l => l.id !== vars.lessonId) }
+        : s
+      ));
+      toast.success('Lesson deleted');
+      queryClient.invalidateQueries({ queryKey: ['course-builder', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
+  });
+
   const publishMut = useMutation({
     mutationFn: () => api.patch(`/courses/${id}/publish`),
     onSuccess: () => {
@@ -273,13 +286,13 @@ export default function CourseBuilderPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
+        <div className="min-w-0">
           <h1 className="font-display font-bold text-2xl text-white">
             {isExactlyInstructor ? 'Manage Curriculum' : isEditing ? 'Edit Course' : 'Create Course'}
           </h1>
-          {isEditing && <p className="text-gray-500 text-sm mt-1">{form.title}</p>}
+          {isEditing && <p className="text-gray-500 text-sm mt-1 break-words">{form.title}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isEditing && (
             <>
               {courseData?.status === 'published' ? (
@@ -469,7 +482,7 @@ export default function CourseBuilderPage() {
             </div>
           ) : (
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <p className="text-sm text-gray-400">
                   {sections.length} section{sections.length !== 1 ? 's' : ''} — {sections.reduce((sum, s) => sum + (s.lessons?.length || 0), 0)} lessons
                 </p>
@@ -488,6 +501,7 @@ export default function CourseBuilderPage() {
                     onDelete={() => { setActiveSectionId(section.id); deleteSectionMut.mutate(section.id); }}
                     onAddLesson={() => { setActiveSectionId(section.id); setEditingLesson(null); setShowLessonModal(true); }}
                     onEditLesson={(lesson) => { setActiveSectionId(section.id); setEditingLesson(lesson); setShowLessonModal(true); }}
+                    onDeleteLesson={(lesson) => deleteLessonMut.mutate({ sectionId: section.id, lessonId: lesson.id })}
                   />
                 ))}
               </div>
@@ -668,30 +682,31 @@ export default function CourseBuilderPage() {
   );
 }
 
-function SectionCard({ section, index, courseId, isExpanded, onToggle, onDelete, onAddLesson, onEditLesson }) {
+function SectionCard({ section, index, courseId, isExpanded, onToggle, onDelete, onAddLesson, onEditLesson, onDeleteLesson }) {
   const lessons = section.lessons || [];
 
   return (
     <div className="card overflow-hidden border-l-4 border-l-[#3B9EE8] transition-all duration-200">
-      <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.01]" onClick={onToggle}>
-        <div className="flex items-center gap-3">
-          <GripVertical size={16} className="text-gray-600 cursor-grab shrink-0" />
-          <div>
-            <p className="font-semibold text-white text-base">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4 cursor-pointer hover:bg-white/[0.01]" onClick={onToggle}>
+        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+          <GripVertical size={16} className="text-gray-600 cursor-grab shrink-0 mt-1 sm:mt-0" />
+          <div className="min-w-0">
+            <p className="font-semibold text-white text-base break-words">
               Section {index + 1}: {section.title}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5 break-words">
               {section.description || 'No description'} &bull; {lessons.length} lesson{lessons.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-8 sm:ml-0">
           <button onClick={e => { e.stopPropagation(); onAddLesson(); }}
-            className="p-1.5 rounded-lg border border-gray-800 hover:border-gray-700 bg-white/[0.02] text-gray-400 hover:text-white transition-all flex items-center gap-1 text-xs" title="Add lesson">
-            <Plus size={14} /> Add Lesson
+            className="p-2 sm:p-1.5 rounded-lg border border-gray-800 hover:border-gray-700 bg-white/[0.02] text-gray-400 hover:text-white transition-all flex items-center gap-1 text-xs"
+            title="Add lesson" aria-label="Add lesson">
+            <Plus size={14} /> <span className="hidden sm:inline">Add Lesson</span>
           </button>
           <button onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="p-1.5 rounded-lg border border-transparent hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all" title="Delete section">
+            className="p-2 sm:p-1.5 rounded-lg border border-transparent hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all" title="Delete section" aria-label="Delete section">
             <Trash2 size={14} />
           </button>
           <div className="p-1.5">
@@ -701,27 +716,32 @@ function SectionCard({ section, index, courseId, isExpanded, onToggle, onDelete,
       </div>
 
       {isExpanded && (
-        <div className="border-t border-gray-800 bg-[#0F1E33]/30 px-6 py-4 space-y-2">
+        <div className="border-t border-gray-800 bg-[#0F1E33]/30 px-3 sm:px-6 py-3 sm:py-4 space-y-2">
           {lessons.map((lesson, li) => (
             <div key={lesson.id}
-              className="flex items-center justify-between py-3 px-4 rounded-xl border border-gray-800/60 bg-[#112236]/30 hover:bg-white/[0.01] hover:border-[#3B9EE8]/30 transition-all cursor-pointer group"
+              className="flex items-center justify-between gap-2 py-3 px-3 sm:px-4 rounded-xl border border-gray-800/60 bg-[#112236]/30 hover:bg-white/[0.01] hover:border-[#3B9EE8]/30 transition-all cursor-pointer group"
               onClick={() => onEditLesson(lesson)}
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <span className="text-xs text-gray-600 w-5 text-right font-medium shrink-0">{li + 1}.</span>
                 <div className="p-1.5 bg-[#0D1B2A] rounded-lg border border-gray-800 shrink-0">
                   <LessonTypeIcon type={lesson.type} />
                 </div>
-                <span className="text-sm font-medium text-gray-300 group-hover:text-white truncate transition-colors mr-2">{lesson.title}</span>
-                <LessonTypeBadge type={lesson.type} />
+                <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors truncate">{lesson.title}</span>
+                <span className="shrink-0"><LessonTypeBadge type={lesson.type} /></span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-gray-500 hidden sm:inline mr-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                <span className="text-xs text-gray-500 hidden sm:inline">
                   {lesson.duration_seconds ? `${Math.round(lesson.duration_seconds / 60)} mins` : 'No duration'}
                 </span>
                 <button onClick={e => { e.stopPropagation(); onEditLesson(lesson); }}
-                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                   Edit
+                </button>
+                <button onClick={e => { e.stopPropagation(); onDeleteLesson(lesson); }}
+                  className="p-2 sm:p-1.5 rounded-lg border border-transparent hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all"
+                  title="Delete lesson" aria-label={`Delete lesson ${lesson.title}`}>
+                  <Trash2 size={14} />
                 </button>
               </div>
             </div>
